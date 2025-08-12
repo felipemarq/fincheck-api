@@ -5,14 +5,20 @@ service: fincheck-api
 
 provider:
   name: aws
-  runtime: nodejs20.x
-  # Uncomment to easily set up a custom domain. Read the docs for more details:
-  # https://www.serverless.com/framework/docs/providers/aws/guide/domains
-  # domain: api.example.com
+  region: sa-east-1
+  runtime: nodejs22.x
+  memorySize: 128
+
+package:
+  individually: true
+
+build:
+  esbuild:
+    configFile: ./esbuild.config.mjs
 
 functions:
-  hello:
-    handler: handler.hello
+  signUp:
+    handler: src/main/functions/hello.handler
     events:
       - httpApi:
           path: /
