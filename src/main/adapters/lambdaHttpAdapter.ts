@@ -19,7 +19,7 @@ export function lambdaHttpAdapter(controller: Controller<any, unknown>) {
       const body = lambdaBodyParser(event.body);
       const params = event.pathParameters ?? {};
       const queryParams = event.queryStringParameters ?? {};
-      const accountId =
+      const userId =
         "authorizer" in event.requestContext
           ? (event.requestContext.authorizer.jwt.claims.internalId as string)
           : null;
@@ -40,7 +40,7 @@ export function lambdaHttpAdapter(controller: Controller<any, unknown>) {
         body,
         params,
         queryParams,
-        accountId,
+        userId,
       });
 
       return {
@@ -72,7 +72,7 @@ export function lambdaHttpAdapter(controller: Controller<any, unknown>) {
         });
       }
 
-      console.log(error);
+      console.log("Internal server error", error);
 
       return lambdaErrorResponse({
         code: ErrorCode.INTERNAL_SERVER_ERROR,

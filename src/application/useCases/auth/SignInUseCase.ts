@@ -1,7 +1,4 @@
-import { Account } from "@aplication/entities/Account";
-import { EmailAlreadyInUse } from "@aplication/errors/application/EmailAlreadyInUse";
-import { InvalidCredentials } from "@aplication/errors/application/InvalidCredentials";
-import { AccountRepository } from "@infra/database/dynamo/repositories/AccountRepository";
+import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
 import { AuthGateway } from "@infra/gateways/AuthGateway";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -22,7 +19,7 @@ export class SignInUseCase {
         refreshToken,
       };
     } catch (error) {
-      throw new InvalidCredentials();
+      throw new UnauthorizedException("Email ou senha inválidos.");
     }
   }
 }

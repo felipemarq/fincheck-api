@@ -1,0 +1,4 @@
+statements:
+  - Effect: Allow
+    Action: cognito-idp:AdminDeleteUser
+    Resource: !GetAtt UserPool.Arn

@@ -1,9 +1,10 @@
 import { Schema } from "@kernel/decorators/Schema";
 
 import { Controller } from "@application/contracts/Controller";
-import { SignInBody, signInSchema } from "./schemas/signinSchema";
+
 import { Injectable } from "@kernel/decorators/Injectable";
-import { SignInUseCase } from "@application/useCases/SignInUseCase";
+import { SignInUseCase } from "@application/useCases/auth/SignInUseCase";
+import { SignInBody, signInSchema } from "./schemas/signInSchema";
 
 @Injectable()
 @Schema(signInSchema)

@@ -8,18 +8,32 @@ provider:
   region: sa-east-1
   runtime: nodejs22.x
   memorySize: 128
+  stage: ${opt:stage, 'dev'}
+  environment: ${file(./sls/config/env.yml)}
+  httpApi:
+    disableDefaultEndpoint: ${env:DISABLE_DEFAULT_APIGW_ENDPOINT, false}
+    authorizers:
+      CognitoAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: !GetAtt UserPool.ProviderURL
+        audience:
+          - !Ref UserPoolClient
 
 package:
   individually: true
+
+custom:
+  cognito:
+    PoolName: ${self:service}-${self:provider.stage}-UserPool
 
 build:
   esbuild:
     configFile: ./esbuild.config.mjs
 
 functions:
-  signUp:
-    handler: src/main/functions/hello.handler
-    events:
-      - httpApi:
-          path: /
-          method: get
+  - ${file(./sls/functions/auth.yml)}
+  - ${file(./sls/functions/bankAccounts.yml)}
+
+resources:
+  - ${file(./sls/resources/UserPool.yml)}
