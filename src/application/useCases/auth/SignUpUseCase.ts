@@ -1,42 +1,70 @@
+import { Entity } from "@application/entities/Entity";
 import { User } from "@application/entities/User";
+import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { ConflictException } from "@application/errors/http/ConflictException";
+import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { UserRepository } from "@infra/database/neon/repositories/UserRepository";
 import { AuthGateway } from "@infra/gateways/AuthGateway";
 import { Injectable } from "@kernel/decorators/Injectable";
+import { Saga } from "@shared/saga/saga";
 
 @Injectable()
 export class SignUpUseCase {
   constructor(
     private readonly authGateway: AuthGateway,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: UserRepository,
+    private readonly entityRepository: EntityRepository,
+    private readonly saga: Saga
   ) {}
   async execute({
     email,
     name,
     password,
   }: SignUpUseCase.Input): Promise<SignUpUseCase.Output> {
-    const userAlreadyExists = await this.userRepository.findByEmail(email);
+    return this.saga.run(async () => {
+      const userAlreadyExists = await this.userRepository.findByEmail(email);
 
-    if (userAlreadyExists) {
-      throw new ConflictException("Este email já está cadastrado.");
-    }
-    const user = new User({ email, name });
+      if (userAlreadyExists) {
+        throw new ConflictException("Este email já está cadastrado.");
+      }
+      const user = new User({ email, name });
 
-    const pendingUser = await this.userRepository.create(user);
+      const pendingUser = await this.userRepository.create(user);
 
-    const { externalId } = await this.authGateway.signUp({
-      email,
-      password,
-      internalId: pendingUser.id,
+      //SignUp Unit of Work
+
+      if (!pendingUser) {
+        throw new BadRequestException("Erro ao criar usuário");
+      }
+
+      const entity = new Entity({
+        name: pendingUser.name,
+        ownerUserId: pendingUser.id,
+      });
+
+      await this.entityRepository.create(entity);
+
+      const { externalId } = await this.authGateway.signUp({
+        email,
+        password,
+        internalId: pendingUser.id,
+      });
+
+      await this.userRepository.setExternalId(externalId, pendingUser.id);
+
+      this.saga.addCompensation(() =>
+        this.userRepository.delete(pendingUser.id)
+      );
+      this.saga.addCompensation(() =>
+        this.authGateway.deleteUser({ externalId })
+      );
+
+      const { accessToken, refreshToken } = await this.authGateway.signIn({
+        email,
+        password,
+      });
+      return { accessToken, refreshToken };
     });
-
-    await this.userRepository.setExternalId(externalId, pendingUser.id);
-
-    const { accessToken, refreshToken } = await this.authGateway.signIn({
-      email,
-      password,
-    });
-    return { accessToken, refreshToken };
   }
 }
 

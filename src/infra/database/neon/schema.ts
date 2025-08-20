@@ -18,7 +18,7 @@ import {
 // Enums (tipos do domínio)
 // ---------------------
 
-export const bankAccountType = pgEnum("bank_account_type", [
+export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento
   "CASH", // Dinheiro em espécie/caixa
@@ -82,7 +82,7 @@ export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
     fields: [entitiesTable.ownerUserId],
     references: [usersTable.id],
   }),
-  bankAccounts: many(bankAccountsTable),
+  accounts: many(accountsTable),
   categories: many(categoriesTable),
   transactions: many(transactionsTable),
   recurringTransactions: many(recurringTransactionsTable),
@@ -93,10 +93,10 @@ export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
 }));
 
 // ---------------------
-// Contas bancárias
+// Contas (antes: bank_accounts)
 // ---------------------
-export const bankAccountsTable = pgTable(
-  "bank_accounts",
+export const accountsTable = pgTable(
+  "accounts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     entityId: uuid("entity_id")
@@ -108,7 +108,7 @@ export const bankAccountsTable = pgTable(
       .references(() => usersTable.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
     initialBalance: money("initial_balance").notNull().default("0"),
-    type: bankAccountType("type").notNull(),
+    type: accountType("type").notNull(),
     color: varchar("color", { length: 7 }).notNull().default("#868E96"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -118,28 +118,25 @@ export const bankAccountsTable = pgTable(
       .notNull(),
   },
   (table) => ({
-    accEntityIdx: index("bank_accounts_entity_idx").on(table.entityId),
-    accUserIdx: index("bank_accounts_user_idx").on(table.userId),
+    accEntityIdx: index("accounts_entity_idx").on(table.entityId),
+    accUserIdx: index("accounts_user_idx").on(table.userId),
   })
 );
 
-export const bankAccountsRelations = relations(
-  bankAccountsTable,
-  ({ one, many }) => ({
-    entity: one(entitiesTable, {
-      fields: [bankAccountsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [bankAccountsTable.userId],
-      references: [usersTable.id],
-    }),
-    transactions: many(transactionsTable),
-    recurringTransactions: many(recurringTransactionsTable),
-    installmentPurchases: many(installmentPurchasesTable),
-    creditCards: many(creditCards),
-  })
-);
+export const accountsRelations = relations(accountsTable, ({ one, many }) => ({
+  entity: one(entitiesTable, {
+    fields: [accountsTable.entityId],
+    references: [entitiesTable.id],
+  }),
+  user: one(usersTable, {
+    fields: [accountsTable.userId],
+    references: [usersTable.id],
+  }),
+  transactions: many(transactionsTable),
+  recurringTransactions: many(recurringTransactionsTable),
+  installmentPurchases: many(installmentPurchasesTable),
+  creditCards: many(creditCards),
+}));
 
 // ---------------------
 // Categorias (INCOME/EXPENSE)
@@ -244,12 +241,9 @@ export const creditCards = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    bankAccountId: uuid("bank_account_id").references(
-      () => bankAccountsTable.id,
-      {
-        onDelete: "set null",
-      }
-    ),
+    accountId: uuid("account_id").references(() => accountsTable.id, {
+      onDelete: "set null",
+    }),
     name: varchar("name", { length: 120 }).notNull(),
     color: varchar("color", { length: 7 }).notNull().default("#868E96"),
     creditLimit: money("credit_limit").notNull().default("0"),
@@ -265,9 +259,7 @@ export const creditCards = pgTable(
   },
   (table) => ({
     ccEntityIdx: index("credit_cards_entity_idx").on(table.entityId),
-    ccBankAccIdx: index("credit_cards_bank_account_idx").on(
-      table.bankAccountId
-    ),
+    ccAccIdx: index("credit_cards_account_idx").on(table.accountId),
   })
 );
 
@@ -280,9 +272,9 @@ export const creditCardsRelations = relations(creditCards, ({ one, many }) => ({
     fields: [creditCards.userId],
     references: [usersTable.id],
   }),
-  bankAccount: one(bankAccountsTable, {
-    fields: [creditCards.bankAccountId],
-    references: [bankAccountsTable.id],
+  account: one(accountsTable, {
+    fields: [creditCards.accountId],
+    references: [accountsTable.id],
   }),
   transactions: many(transactionsTable),
   installmentPurchases: many(installmentPurchasesTable),
@@ -301,12 +293,9 @@ export const installmentPurchasesTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    bankAccountId: uuid("bank_account_id").references(
-      () => bankAccountsTable.id,
-      {
-        onDelete: "cascade",
-      }
-    ),
+    accountId: uuid("account_id").references(() => accountsTable.id, {
+      onDelete: "cascade",
+    }),
     categoryId: uuid("category_id").references(() => categoriesTable.id, {
       onDelete: "set null",
     }),
@@ -342,9 +331,9 @@ export const installmentPurchasesRelations = relations(
       fields: [installmentPurchasesTable.userId],
       references: [usersTable.id],
     }),
-    bankAccount: one(bankAccountsTable, {
-      fields: [installmentPurchasesTable.bankAccountId],
-      references: [bankAccountsTable.id],
+    account: one(accountsTable, {
+      fields: [installmentPurchasesTable.accountId],
+      references: [accountsTable.id],
     }),
     category: one(categoriesTable, {
       fields: [installmentPurchasesTable.categoryId],
@@ -423,9 +412,9 @@ export const recurringTransactionsTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    bankAccountId: uuid("bank_account_id")
+    accountId: uuid("account_id")
       .notNull()
-      .references(() => bankAccountsTable.id, { onDelete: "cascade" }),
+      .references(() => accountsTable.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id").references(() => categoriesTable.id, {
       onDelete: "set null",
     }),
@@ -466,9 +455,9 @@ export const recurringTransactionsRelations = relations(
       fields: [recurringTransactionsTable.userId],
       references: [usersTable.id],
     }),
-    bankAccount: one(bankAccountsTable, {
-      fields: [recurringTransactionsTable.bankAccountId],
-      references: [bankAccountsTable.id],
+    account: one(accountsTable, {
+      fields: [recurringTransactionsTable.accountId],
+      references: [accountsTable.id],
     }),
     category: one(categoriesTable, {
       fields: [recurringTransactionsTable.categoryId],
@@ -494,9 +483,9 @@ export const transactionsTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    bankAccountId: uuid("bank_account_id")
+    accountId: uuid("account_id")
       .notNull()
-      .references(() => bankAccountsTable.id, { onDelete: "cascade" }),
+      .references(() => accountsTable.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id").references(() => categoriesTable.id, {
       onDelete: "set null",
     }),
@@ -550,9 +539,9 @@ export const transactionsRelations = relations(
       fields: [transactionsTable.userId],
       references: [usersTable.id],
     }),
-    bankAccount: one(bankAccountsTable, {
-      fields: [transactionsTable.bankAccountId],
-      references: [bankAccountsTable.id],
+    account: one(accountsTable, {
+      fields: [transactionsTable.accountId],
+      references: [accountsTable.id],
     }),
     category: one(categoriesTable, {
       fields: [transactionsTable.categoryId],
@@ -675,7 +664,7 @@ export const auditLogs = pgTable(
 // ---------------------
 export const usersRelations = relations(usersTable, ({ many }) => ({
   entities: many(entitiesTable),
-  accounts: many(bankAccountsTable),
+  accounts: many(accountsTable),
   categories: many(categoriesTable),
   creditCards: many(creditCards),
   transactions: many(transactionsTable),
@@ -694,7 +683,7 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
 //    db.select({
 //      inflow: sum(case when t.type='INCOME' and t.is_paid then t.value end),
 //      outflow: sum(case when t.type='EXPENSE' and t.is_paid then t.value end),
-//    }).from(transactions as t).where(eq(t.bankAccountId, accountId))
+//    }).from(transactions as t).where(eq(t.accountId, accountId))
 //
 // 2) Fatura do cartão (competência):
 //    intervalo: (lastClosing, currentClosing]

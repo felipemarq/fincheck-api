@@ -15,6 +15,7 @@ export class UserRepository {
       .values({ name, email })
       .returning({
         id: usersTable.id,
+        name: usersTable.name,
       });
 
     return userCreated;
@@ -40,5 +41,11 @@ export class UserRepository {
       })
       .where(eq(usersTable.id, userId))
       .returning();
+  }
+
+  async delete(userId: string) {
+    await this.databaseService.db
+      .delete(usersTable)
+      .where(eq(usersTable.id, userId));
   }
 }
