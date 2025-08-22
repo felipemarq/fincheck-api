@@ -1,7 +1,7 @@
 import { Injectable } from "@kernel/decorators/Injectable";
 import { DatabaseService } from "..";
 import { entitiesTable, usersTable } from "../schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Entity } from "@application/entities/Entity";
 
 @Injectable()
@@ -18,6 +18,26 @@ export class EntityRepository {
       } */);
 
     return entityCreated;
+  }
+
+  async findByUserId({
+    userId,
+    entityId,
+  }: {
+    userId: string;
+    entityId: string;
+  }) {
+    const [entity] = await this.databaseService.db
+      .select()
+      .from(entitiesTable)
+      .where(
+        and(
+          eq(entitiesTable.ownerUserId, userId),
+          eq(entitiesTable.id, entityId)
+        )
+      );
+
+    return entity;
   }
 
   async delete(userId: string) {

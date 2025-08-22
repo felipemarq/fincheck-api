@@ -22,6 +22,9 @@ import {
 export type AccountRow = typeof accountsTable.$inferSelect; // row lida do DB
 export type NewAccountRow = typeof accountsTable.$inferInsert; // shape p/ insert
 
+export type TransactionRow = typeof transactionsTable.$inferSelect; // row lida do DB
+export type NewTransactionRow = typeof transactionsTable.$inferInsert; // shape p/ insert
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento
@@ -74,7 +77,8 @@ export const entitiesTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     ownerIdx: index("entities_owner_idx").on(table.ownerUserId),
@@ -119,7 +123,8 @@ export const accountsTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     accEntityIdx: index("accounts_entity_idx").on(table.entityId),
@@ -163,7 +168,8 @@ export const categoriesTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     catEntityIdx: index("categories_entity_idx").on(table.entityId),
@@ -213,7 +219,8 @@ export const contacts = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     contactEntityIdx: index("contacts_entity_idx").on(table.entityId),
@@ -259,7 +266,8 @@ export const creditCards = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     ccEntityIdx: index("credit_cards_entity_idx").on(table.entityId),
@@ -316,7 +324,8 @@ export const installmentPurchasesTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     ipEntityIdx: index("installment_purchases_entity_idx").on(table.entityId),
@@ -377,7 +386,8 @@ export const installmentsTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     instEntityIdx: index("installments_entity_idx").on(table.entityId),
@@ -438,7 +448,8 @@ export const recurringTransactionsTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     recEntityIdx: index("recurring_transactions_entity_idx").on(table.entityId),
@@ -490,9 +501,11 @@ export const transactionsTable = pgTable(
     accountId: uuid("account_id")
       .notNull()
       .references(() => accountsTable.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id").references(() => categoriesTable.id, {
-      onDelete: "set null",
-    }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categoriesTable.id, {
+        onDelete: "set null",
+      }),
     creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
       onDelete: "set null",
     }),
@@ -517,7 +530,8 @@ export const transactionsTable = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     trxEntityDateIdx: index("transactions_entity_date_idx").on(
@@ -588,7 +602,8 @@ export const taxRates = pgTable(
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
-      .notNull(),
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (table) => ({
     taxUniquePerMonth: uniqueIndex("tax_rates_entity_month_year_uq").on(

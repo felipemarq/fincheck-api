@@ -34,6 +34,7 @@ build:
 functions:
   - ${file(./sls/functions/auth.yml)}
   - ${file(./sls/functions/accounts.yml)}
+  - ${file(./sls/functions/transactions.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

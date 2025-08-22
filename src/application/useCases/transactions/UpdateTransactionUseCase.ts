@@ -1,0 +1,61 @@
+import { Account } from "@application/entities/Account";
+import { Transaction } from "@application/entities/Transaction";
+import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
+import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
+import { TransactionRepository } from "@infra/database/neon/repositories/TransactionRepository";
+import { Injectable } from "@kernel/decorators/Injectable";
+
+@Injectable()
+export class UpdateTransactionUseCase {
+  constructor(
+    private readonly transactionRepository: TransactionRepository,
+    private readonly entityRepository: EntityRepository
+  ) {}
+
+  async execute(
+    transactionInput: UpdateTransactionUseCase.Input
+  ): Promise<UpdateTransactionUseCase.Output> {
+    const transaction = new Transaction(transactionInput);
+
+    const entity = await this.entityRepository.findByUserId({
+      userId: transactionInput.userId,
+      entityId: transactionInput.entityId,
+    });
+
+    if (!entity) {
+      throw new UnauthorizedException(
+        "Usuário não tem permissão para editar transações nessa entidade."
+      );
+    }
+
+    const updatedTransaction = await this.transactionRepository.update(
+      transactionInput.id,
+      transaction
+    );
+
+    return updatedTransaction;
+  }
+}
+
+export namespace UpdateTransactionUseCase {
+  export type Input = {
+    id: string;
+    entityId: string;
+    userId: string;
+    accountId: string;
+    categoryId: string;
+    creditCardId?: string;
+    installmentPurchaseId?: string;
+    contactId?: string;
+    name: string;
+    date: Date;
+    dueDate?: Date;
+    type: Transaction.Type;
+    isPaid: boolean;
+    notes?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+    value: number;
+  };
+  export type Output = Transaction;
+}
