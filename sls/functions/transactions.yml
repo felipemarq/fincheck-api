@@ -7,6 +7,15 @@ createTransaction:
         authorizer:
           name: CognitoAuthorizer
 
+listTransactions:
+  handler: src/main/functions/transactions/listTransactions.handler
+  events:
+    - httpApi:
+        path: /transactions
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
 updateTransaction:
   handler: src/main/functions/transactions/updateTransaction.handler
   events:
