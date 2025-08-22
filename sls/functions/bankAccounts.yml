@@ -1,8 +1,0 @@
-createBankAccount:
-  handler: src/main/functions/bankAccounts/createBankAccount.handler
-  events:
-    - httpApi:
-        path: /bank-accounts
-        method: POST
-        authorizer:
-          name: CognitoAuthorizer

@@ -1,0 +1,17 @@
+createAccount:
+  handler: src/main/functions/accounts/createAccount.handler
+  events:
+    - httpApi:
+        path: /accounts
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listAccounts:
+  handler: src/main/functions/accounts/listAccounts.handler
+  events:
+    - httpApi:
+        method: GET
+        path: /entities/{entityId}/accounts
+        authorizer:
+          name: CognitoAuthorizer

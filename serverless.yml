@@ -33,7 +33,7 @@ build:
 
 functions:
   - ${file(./sls/functions/auth.yml)}
-  - ${file(./sls/functions/bankAccounts.yml)}
+  - ${file(./sls/functions/accounts.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

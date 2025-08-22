@@ -18,6 +18,10 @@ import {
 // Enums (tipos do domínio)
 // ---------------------
 
+// schema.ts
+export type AccountRow = typeof accountsTable.$inferSelect; // row lida do DB
+export type NewAccountRow = typeof accountsTable.$inferInsert; // shape p/ insert
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento

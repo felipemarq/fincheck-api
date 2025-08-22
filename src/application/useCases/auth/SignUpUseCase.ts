@@ -2,6 +2,7 @@ import { Entity } from "@application/entities/Entity";
 import { User } from "@application/entities/User";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { ConflictException } from "@application/errors/http/ConflictException";
+import { CategoryRepository } from "@infra/database/neon/repositories/CategoryRepository";
 import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { UserRepository } from "@infra/database/neon/repositories/UserRepository";
 import { AuthGateway } from "@infra/gateways/AuthGateway";
@@ -14,6 +15,7 @@ export class SignUpUseCase {
     private readonly authGateway: AuthGateway,
     private readonly userRepository: UserRepository,
     private readonly entityRepository: EntityRepository,
+    private readonly categoryRepository: CategoryRepository,
     private readonly saga: Saga
   ) {}
   async execute({
@@ -42,7 +44,7 @@ export class SignUpUseCase {
         ownerUserId: pendingUser.id,
       });
 
-      await this.entityRepository.create(entity);
+      const createdEntity = await this.entityRepository.create(entity);
 
       const { externalId } = await this.authGateway.signUp({
         email,
@@ -51,6 +53,10 @@ export class SignUpUseCase {
       });
 
       await this.userRepository.setExternalId(externalId, pendingUser.id);
+      await this.categoryRepository.seedDefault({
+        entityId: createdEntity.id,
+        userId: pendingUser.id,
+      });
 
       this.saga.addCompensation(() =>
         this.userRepository.delete(pendingUser.id)
