@@ -35,6 +35,7 @@ functions:
   - ${file(./sls/functions/auth.yml)}
   - ${file(./sls/functions/accounts.yml)}
   - ${file(./sls/functions/transactions.yml)}
+  - ${file(./sls/functions/recurringTransactions.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

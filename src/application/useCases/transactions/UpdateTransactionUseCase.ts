@@ -4,6 +4,7 @@ import { UnauthorizedException } from "@application/errors/http/UnauthorizedExce
 import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { TransactionRepository } from "@infra/database/neon/repositories/TransactionRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
+import { CreateTransactionUseCase } from "./CreateTransactionUseCase";
 
 @Injectable()
 export class UpdateTransactionUseCase {
@@ -38,24 +39,8 @@ export class UpdateTransactionUseCase {
 }
 
 export namespace UpdateTransactionUseCase {
-  export type Input = {
+  export type Input = CreateTransactionUseCase.Input & {
     id: string;
-    entityId: string;
-    userId: string;
-    accountId: string;
-    categoryId: string;
-    creditCardId?: string;
-    installmentPurchaseId?: string;
-    contactId?: string;
-    name: string;
-    date: Date;
-    dueDate?: Date;
-    type: Transaction.Type;
-    isPaid: boolean;
-    notes?: string;
-    createdAt?: Date;
-    updatedAt?: Date;
-    value: number;
   };
   export type Output = Transaction;
 }

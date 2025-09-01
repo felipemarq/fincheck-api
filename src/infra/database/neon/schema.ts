@@ -25,6 +25,11 @@ export type NewAccountRow = typeof accountsTable.$inferInsert; // shape p/ inser
 export type TransactionRow = typeof transactionsTable.$inferSelect; // row lida do DB
 export type NewTransactionRow = typeof transactionsTable.$inferInsert; // shape p/ insert
 
+export type RecurringTransactionRow =
+  typeof recurringTransactionsTable.$inferSelect; // row lida do DB
+export type NewRecurringTransactionRow =
+  typeof recurringTransactionsTable.$inferInsert; // shape p/ insert
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento
@@ -97,7 +102,7 @@ export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
   installmentPurchases: many(installmentPurchasesTable),
   installments: many(installmentsTable),
   creditCards: many(creditCards),
-  contacts: many(contacts),
+  contacts: many(contactsTable),
 }));
 
 // ---------------------
@@ -201,7 +206,7 @@ export const categoriesRelations = relations(
 // ---------------------
 // Contatos (pagadores/fornecedores)
 // ---------------------
-export const contacts = pgTable(
+export const contactsTable = pgTable(
   "contacts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -227,13 +232,13 @@ export const contacts = pgTable(
   })
 );
 
-export const contactsRelations = relations(contacts, ({ one, many }) => ({
+export const contactsRelations = relations(contactsTable, ({ one, many }) => ({
   entity: one(entitiesTable, {
-    fields: [contacts.entityId],
+    fields: [contactsTable.entityId],
     references: [entitiesTable.id],
   }),
   user: one(usersTable, {
-    fields: [contacts.userId],
+    fields: [contactsTable.userId],
     references: [usersTable.id],
   }),
   transactions: many(transactionsTable),
@@ -429,10 +434,15 @@ export const recurringTransactionsTable = pgTable(
     accountId: uuid("account_id")
       .notNull()
       .references(() => accountsTable.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id").references(() => categoriesTable.id, {
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categoriesTable.id, {
+        onDelete: "cascade",
+      }),
+    creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
       onDelete: "set null",
     }),
-    creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
+    contactId: uuid("contact_id").references(() => contactsTable.id, {
       onDelete: "set null",
     }),
     name: varchar("name", { length: 160 }).notNull(),
@@ -441,6 +451,7 @@ export const recurringTransactionsTable = pgTable(
     endDate: timestamp("end_date", { withTimezone: true }),
     recurrence: recurrenceType("recurrence").notNull(),
     type: transactionType("type").notNull(),
+    notes: text("notes"),
     // Opcional: série para idempotência (ex.: UUID fixo para a recorrência)
     seriesKey: varchar("series_key", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -513,7 +524,7 @@ export const transactionsTable = pgTable(
       () => installmentPurchasesTable.id,
       { onDelete: "set null" }
     ),
-    contactId: uuid("contact_id").references(() => contacts.id, {
+    contactId: uuid("contact_id").references(() => contactsTable.id, {
       onDelete: "set null",
     }),
 
@@ -524,7 +535,6 @@ export const transactionsTable = pgTable(
     type: transactionType("type").notNull(),
     isPaid: boolean("is_paid").notNull().default(true), // padrão: pago no ato
     notes: text("notes"),
-
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -573,9 +583,9 @@ export const transactionsRelations = relations(
       fields: [transactionsTable.installmentPurchaseId],
       references: [installmentPurchasesTable.id],
     }),
-    contact: one(contacts, {
+    contact: one(contactsTable, {
       fields: [transactionsTable.contactId],
-      references: [contacts.id],
+      references: [contactsTable.id],
     }),
   })
 );
@@ -689,7 +699,7 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
   transactions: many(transactionsTable),
   recurringTransactions: many(recurringTransactionsTable),
   installmentPurchases: many(installmentPurchasesTable),
-  contacts: many(contacts),
+  contacts: many(contactsTable),
   taxRates: many(taxRates),
 }));
 
