@@ -17,6 +17,7 @@ export class RecurringTransaction {
   readonly seriesKey?: string;
   readonly createdAt?: Date;
   readonly updatedAt?: Date;
+  readonly contactId?: string;
 
   constructor(attr: RecurringTransaction.Attributes) {
     this.id = attr.id;
@@ -36,6 +37,7 @@ export class RecurringTransaction {
     this.seriesKey = attr.seriesKey;
     this.createdAt = attr.createdAt;
     this.updatedAt = attr.updatedAt;
+    this.contactId = attr.contactId;
   }
 }
 

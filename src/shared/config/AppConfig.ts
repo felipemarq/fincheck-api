@@ -7,6 +7,8 @@ export class AppConfig {
 
   readonly db: AppConfig.Database;
 
+  readonly recurrence: AppConfig.Recurrence;
+
   /*readonly storage: AppConfig.Storage;
 
   readonly cdns: AppConfig.CDNs;
@@ -28,6 +30,10 @@ export class AppConfig {
 
     this.db = {
       url: env.DATABASE_URL,
+    };
+
+    this.recurrence = {
+      horizonDays: env.RECURRENCE_HORIZON_DAYS,
     };
     /*
     this.storage = {
@@ -59,6 +65,10 @@ export namespace AppConfig {
 
   export type Database = {
     url: string;
+  };
+
+  export type Recurrence = {
+    horizonDays: number;
   };
 
   /*  export type Storage = {

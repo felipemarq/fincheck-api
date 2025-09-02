@@ -3,7 +3,19 @@ import { DatabaseService } from "..";
 import { recurringTransactionsTable } from "../schema";
 import { RecurringTransactionItem } from "../items/RecurringTransactionItem";
 import { RecurringTransaction } from "@application/entities/RecurringTransaction";
-import { and, asc, desc, eq, gte, ilike, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { ListRecurringTransactionQuery } from "@application/controllers/recurringTransactions/schemas/listRecurringTransactionQuerySchema";
 import { Transaction } from "@application/entities/Transaction";
 import { TransactionItem } from "../items/TransactionItem";
@@ -145,5 +157,29 @@ export class RecurringTransactionRepository {
           eq(recurringTransactionsTable.userId, userId)
         )
       );
+  }
+
+  /**
+   * Regras cuja janela [startDate..endDate] intersecta [from..to]
+   * (startDate <= to) AND (endDate IS NULL OR endDate >= from)
+   */
+  async listIntersecting(
+    from: Date,
+    to: Date
+  ): Promise<RecurringTransaction[]> {
+    const rows = await this.databaseService.db
+      .select()
+      .from(recurringTransactionsTable)
+      .where(
+        and(
+          lte(recurringTransactionsTable.startDate, to),
+          or(
+            isNull(recurringTransactionsTable.endDate),
+            gte(recurringTransactionsTable.endDate, from)
+          )
+        )
+      );
+
+    return rows.map(RecurringTransactionItem.fromRow);
   }
 }

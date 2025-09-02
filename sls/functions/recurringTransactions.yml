@@ -33,3 +33,10 @@ deleteRecurringTransaction:
         method: DELETE
         authorizer:
           name: CognitoAuthorizer
+
+recurringMaterializeDaily:
+  handler: src/main/functions/recurringTransactions/materializeDaily.handler
+  timeout: 30
+  events:
+    - eventBridge:
+        schedule: cron(0 3 * * ? *) # 03:00 UTC, 1x/dia

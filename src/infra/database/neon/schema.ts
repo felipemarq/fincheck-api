@@ -535,6 +535,9 @@ export const transactionsTable = pgTable(
     type: transactionType("type").notNull(),
     isPaid: boolean("is_paid").notNull().default(true), // padrão: pago no ato
     notes: text("notes"),
+
+    // 👇 adiciona esta coluna
+    seriesKey: varchar("series_key", { length: 120 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -553,6 +556,7 @@ export const transactionsTable = pgTable(
       table.date
     ),
     trxTypeIdx: index("transactions_type_idx").on(table.type),
+    trxSeriesUq: uniqueIndex("transactions_series_key_uq").on(table.seriesKey),
   })
 );
 
