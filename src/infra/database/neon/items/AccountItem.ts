@@ -22,6 +22,8 @@ export class AccountItem {
       initialBalance: Number(row.initialBalance),
       type: row.type as Account.Type, // enum compatível
       color: row.color ?? "#868E96",
+      createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt) : undefined,
     });
   }
 

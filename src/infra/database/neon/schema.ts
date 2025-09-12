@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { InferInsertModel, InferSelectModel, relations } from "drizzle-orm";
 import {
   numeric,
   pgTable,
@@ -29,6 +29,9 @@ export type RecurringTransactionRow =
   typeof recurringTransactionsTable.$inferSelect; // row lida do DB
 export type NewRecurringTransactionRow =
   typeof recurringTransactionsTable.$inferInsert; // shape p/ insert
+
+export type CreditCardRow = InferSelectModel<typeof creditCardsTable>;
+export type NewCreditCardRow = InferInsertModel<typeof creditCardsTable>;
 
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
@@ -101,7 +104,7 @@ export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
   recurringTransactions: many(recurringTransactionsTable),
   installmentPurchases: many(installmentPurchasesTable),
   installments: many(installmentsTable),
-  creditCards: many(creditCards),
+  creditCards: many(creditCardsTable),
   contacts: many(contactsTable),
 }));
 
@@ -149,7 +152,7 @@ export const accountsRelations = relations(accountsTable, ({ one, many }) => ({
   transactions: many(transactionsTable),
   recurringTransactions: many(recurringTransactionsTable),
   installmentPurchases: many(installmentPurchasesTable),
-  creditCards: many(creditCards),
+  creditCards: many(creditCardsTable),
 }));
 
 // ---------------------
@@ -247,7 +250,7 @@ export const contactsRelations = relations(contactsTable, ({ one, many }) => ({
 // ---------------------
 // Cartões de Crédito
 // ---------------------
-export const creditCards = pgTable(
+export const creditCardsTable = pgTable(
   "credit_cards",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -280,22 +283,25 @@ export const creditCards = pgTable(
   })
 );
 
-export const creditCardsRelations = relations(creditCards, ({ one, many }) => ({
-  entity: one(entitiesTable, {
-    fields: [creditCards.entityId],
-    references: [entitiesTable.id],
-  }),
-  user: one(usersTable, {
-    fields: [creditCards.userId],
-    references: [usersTable.id],
-  }),
-  account: one(accountsTable, {
-    fields: [creditCards.accountId],
-    references: [accountsTable.id],
-  }),
-  transactions: many(transactionsTable),
-  installmentPurchases: many(installmentPurchasesTable),
-}));
+export const creditCardsRelations = relations(
+  creditCardsTable,
+  ({ one, many }) => ({
+    entity: one(entitiesTable, {
+      fields: [creditCardsTable.entityId],
+      references: [entitiesTable.id],
+    }),
+    user: one(usersTable, {
+      fields: [creditCardsTable.userId],
+      references: [usersTable.id],
+    }),
+    account: one(accountsTable, {
+      fields: [creditCardsTable.accountId],
+      references: [accountsTable.id],
+    }),
+    transactions: many(transactionsTable),
+    installmentPurchases: many(installmentPurchasesTable),
+  })
+);
 
 // ---------------------
 // Compras Parceladas (cabeçalho)
@@ -316,7 +322,7 @@ export const installmentPurchasesTable = pgTable(
     categoryId: uuid("category_id").references(() => categoriesTable.id, {
       onDelete: "set null",
     }),
-    creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
+    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
       onDelete: "set null",
     }),
     name: varchar("name", { length: 160 }).notNull(),
@@ -357,9 +363,9 @@ export const installmentPurchasesRelations = relations(
       fields: [installmentPurchasesTable.categoryId],
       references: [categoriesTable.id],
     }),
-    creditCard: one(creditCards, {
+    creditCard: one(creditCardsTable, {
       fields: [installmentPurchasesTable.creditCardId],
-      references: [creditCards.id],
+      references: [creditCardsTable.id],
     }),
     installments: many(installmentsTable),
     transactions: many(transactionsTable),
@@ -439,7 +445,7 @@ export const recurringTransactionsTable = pgTable(
       .references(() => categoriesTable.id, {
         onDelete: "cascade",
       }),
-    creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
+    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
       onDelete: "set null",
     }),
     contactId: uuid("contact_id").references(() => contactsTable.id, {
@@ -489,9 +495,9 @@ export const recurringTransactionsRelations = relations(
       fields: [recurringTransactionsTable.categoryId],
       references: [categoriesTable.id],
     }),
-    creditCard: one(creditCards, {
+    creditCard: one(creditCardsTable, {
       fields: [recurringTransactionsTable.creditCardId],
-      references: [creditCards.id],
+      references: [creditCardsTable.id],
     }),
   })
 );
@@ -517,7 +523,7 @@ export const transactionsTable = pgTable(
       .references(() => categoriesTable.id, {
         onDelete: "set null",
       }),
-    creditCardId: uuid("credit_card_id").references(() => creditCards.id, {
+    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
       onDelete: "set null",
     }),
     installmentPurchaseId: uuid("installment_purchase_id").references(
@@ -579,9 +585,9 @@ export const transactionsRelations = relations(
       fields: [transactionsTable.categoryId],
       references: [categoriesTable.id],
     }),
-    creditCard: one(creditCards, {
+    creditCard: one(creditCardsTable, {
       fields: [transactionsTable.creditCardId],
-      references: [creditCards.id],
+      references: [creditCardsTable.id],
     }),
     installmentPurchase: one(installmentPurchasesTable, {
       fields: [transactionsTable.installmentPurchaseId],
@@ -699,7 +705,7 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
   entities: many(entitiesTable),
   accounts: many(accountsTable),
   categories: many(categoriesTable),
-  creditCards: many(creditCards),
+  creditCards: many(creditCardsTable),
   transactions: many(transactionsTable),
   recurringTransactions: many(recurringTransactionsTable),
   installmentPurchases: many(installmentPurchasesTable),

@@ -1,5 +1,5 @@
 import "reflect-metadata";
 import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
-import { CreateAccountController } from "@application/controllers/accounts/CreateAccountController";
+import { CreateCreditCardController } from "@application/controllers/creditCards/CreateCreditCardController";
 
-export const handler = lambdaHttpAdapter(CreateAccountController);
+export const handler = lambdaHttpAdapter(CreateCreditCardController);

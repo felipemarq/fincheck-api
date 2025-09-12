@@ -6,6 +6,8 @@ export class Account {
   readonly initialBalance: number;
   readonly type: Account.Type;
   readonly color?: string;
+  readonly createdAt?: Date;
+  readonly updatedAt?: Date;
 
   constructor(attr: Account.Attributes) {
     this.id = attr.id;
@@ -15,6 +17,8 @@ export class Account {
     this.initialBalance = attr.initialBalance;
     this.type = attr.type;
     this.color = attr.color ?? "#868E96";
+    this.createdAt = attr.createdAt;
+    this.updatedAt = attr.updatedAt;
   }
 }
 
@@ -27,6 +31,8 @@ export namespace Account {
     initialBalance: number;
     type: Account.Type;
     color?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
   };
 
   export enum Type {

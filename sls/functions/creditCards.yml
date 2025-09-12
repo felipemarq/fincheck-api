@@ -1,0 +1,26 @@
+createCreditCard:
+  handler: src/main/functions/creditCards/createCreditCard.handler
+  events:
+    - httpApi:
+        path: /credit-cards
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listCreditCards:
+  handler: src/main/functions/creditCards/listCreditCards.handler
+  events:
+    - httpApi:
+        path: /credit-cards
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateCreditCard:
+  handler: src/main/functions/creditCards/updateCreditCard.handler
+  events:
+    - httpApi:
+        path: /credit-cards/{creditCardId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
