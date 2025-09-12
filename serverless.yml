@@ -37,6 +37,7 @@ functions:
   - ${file(./sls/functions/transactions.yml)}
   - ${file(./sls/functions/recurringTransactions.yml)}
   - ${file(./sls/functions/creditCards.yml)}
+  - ${file(./sls/functions/taxes.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

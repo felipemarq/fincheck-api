@@ -33,6 +33,9 @@ export type NewRecurringTransactionRow =
 export type CreditCardRow = InferSelectModel<typeof creditCardsTable>;
 export type NewCreditCardRow = InferInsertModel<typeof creditCardsTable>;
 
+export type TaxRateRow = typeof taxRates.$inferSelect;
+export type NewTaxRateRow = typeof taxRates.$inferInsert;
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento
