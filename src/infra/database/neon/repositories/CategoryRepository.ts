@@ -1,9 +1,9 @@
 import { Account } from "@application/entities/Account";
 import { DatabaseService } from "..";
-import { accountsTable, categoriesTable } from "../schema";
+import { accountsTable, categoriesTable, transactionsTable } from "../schema";
 import { AccountItem } from "../items/AccountItem";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 export const DEFAULT_CATEGORIES: Array<{
   name: string;
@@ -56,5 +56,46 @@ export class CategoryRepository {
       .returning();
 
     return insertedCategories;
+  }
+
+  async getTopCategories(
+    entityId: string,
+    userId: string,
+    from: Date,
+    to: Date,
+    topN: number
+  ) {
+    const rows = await this.databaseService.db
+      .select({
+        categoryId: transactionsTable.categoryId,
+        name: categoriesTable.name,
+        icon: categoriesTable.icon,
+        amount: sql<number>`sum((${transactionsTable.value})::numeric)`,
+      })
+      .from(transactionsTable)
+      .innerJoin(
+        categoriesTable,
+        and(
+          eq(categoriesTable.id, transactionsTable.categoryId),
+          eq(categoriesTable.entityId, entityId)
+        )
+      )
+      .where(
+        and(
+          eq(transactionsTable.entityId, entityId),
+          eq(transactionsTable.userId, userId),
+          eq(transactionsTable.type, "EXPENSE"),
+          gte(transactionsTable.date, from),
+          lte(transactionsTable.date, to)
+        )
+      )
+      .groupBy(
+        transactionsTable.categoryId,
+        categoriesTable.name,
+        categoriesTable.icon
+      )
+      .orderBy(desc(sql`sum((${transactionsTable.value})::numeric)`))
+      .limit(topN);
+    return rows;
   }
 }

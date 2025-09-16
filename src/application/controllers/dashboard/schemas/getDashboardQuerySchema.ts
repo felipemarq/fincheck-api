@@ -1,0 +1,28 @@
+import { z } from "zod";
+
+export const getDashboardQuerySchema = z.object({
+  entityId: z.string().uuid(),
+  range: z.enum(["this-month", "last-30d", "custom"]).default("this-month"),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  sections: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? Array.from(
+            new Set(
+              s
+                .split(",")
+                .map((x) => x.trim())
+                .filter(Boolean)
+            )
+          )
+        : []
+    ),
+  topN: z.coerce.number().int().min(1).max(20).default(5),
+  // base de cálculo para cashflow/balances
+  basis: z.enum(["competence", "cash"]).optional().default("cash"),
+});
+
+export type GetDashboardQuery = z.infer<typeof getDashboardQuerySchema>;

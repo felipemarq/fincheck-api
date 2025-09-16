@@ -56,4 +56,26 @@ export class TaxRateRepository {
     const r = await this.get(entityId, userId, year, month);
     return r ? r.ratePercent : null;
   }
+
+  async getMonthlyTax(entityId: string, userId: string, anyDateInMonth: Date) {
+    const y = anyDateInMonth.getUTCFullYear();
+    const m = anyDateInMonth.getUTCMonth() + 1;
+
+    // pega taxa (se existir)
+    const [rateRow] = await this.dbs.db
+      .select({ ratePercent: taxRates.ratePercent })
+      .from(taxRates)
+      .where(
+        and(
+          eq(taxRates.entityId, entityId),
+          eq(taxRates.userId, userId),
+          eq(taxRates.year, y),
+          eq(taxRates.month, m)
+        )
+      )
+      .limit(1);
+
+    const rate = rateRow ? Number(rateRow.ratePercent) : null;
+    return rate;
+  }
 }

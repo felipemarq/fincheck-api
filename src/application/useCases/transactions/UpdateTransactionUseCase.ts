@@ -29,6 +29,16 @@ export class UpdateTransactionUseCase {
       );
     }
 
+    const transactionExists = await this.transactionRepository.findOne({
+      transactionId: transactionInput.id,
+      userId: transactionInput.userId,
+      entityId: transactionInput.entityId,
+    });
+
+    if (!transactionExists) {
+      throw new UnauthorizedException("Transação não encontrada para editar.");
+    }
+
     const updatedTransaction = await this.transactionRepository.update(
       transactionInput.id,
       transaction

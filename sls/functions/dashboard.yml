@@ -1,0 +1,8 @@
+getDashboard:
+  handler: src/main/functions/dashboard/getDashboard.handler
+  events:
+    - httpApi:
+        path: /dashboard
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
