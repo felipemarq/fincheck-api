@@ -19,6 +19,25 @@ provider:
         issuerUrl: !GetAtt UserPool.ProviderURL
         audience:
           - !Ref UserPoolClient
+    cors:
+      allowedOrigins:
+        - http://localhost:5173 # Vite
+        - http://127.0.0.1:5173 # às vezes o Vite usa 127.0.0.1
+        - https://app.moneystack.com.br # prod (se já existir)
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - x-idempotency-key
+      allowedMethods:
+        - OPTIONS
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+      allowCredentials: false # true só se você usar cookies
+      maxAge: 600
 
 package:
   individually: true

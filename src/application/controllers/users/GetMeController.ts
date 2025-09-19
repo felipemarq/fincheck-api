@@ -23,13 +23,11 @@ export class GetMeController extends Controller<
 
     return {
       statusCode: 200,
-      body: { user: { ...user, entities } },
+      body: { ...user, entities },
     };
   }
 }
 
 export namespace GetMeController {
-  export type Response = {
-    user: User & { entities: Entity[] };
-  };
+  export type Response = User & { entities: Entity[] };
 }
