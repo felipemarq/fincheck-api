@@ -211,40 +211,6 @@ export class TransactionRepository {
     return rows;
   }
 
-  async getCashflow(
-    entityId: string,
-    userId: string,
-    from: Date,
-    to: Date,
-    basis: "competence" | "cash"
-  ) {
-    const where = [
-      eq(transactionsTable.entityId, entityId),
-      eq(transactionsTable.userId, userId),
-      gte(transactionsTable.date, from),
-      lte(transactionsTable.date, to),
-    ] as any[];
-
-    if (basis === "cash") {
-      where.push(eq(transactionsTable.isPaid, true));
-    }
-
-    const dayCol = sql<string>`to_char(date_trunc('day', ${transactionsTable.date}), 'YYYY-MM-DD')`;
-
-    const rows = await this.databaseService.db
-      .select({
-        day: dayCol,
-        income: sql<number>`coalesce(sum(CASE WHEN ${transactionsTable.type}='INCOME'  THEN (${transactionsTable.value})::numeric ELSE 0 END),0)`,
-        expense: sql<number>`coalesce(sum(CASE WHEN ${transactionsTable.type}='EXPENSE' THEN (${transactionsTable.value})::numeric ELSE 0 END),0)`,
-      })
-      .from(transactionsTable)
-      .where(and(...where))
-      .groupBy(dayCol)
-      .orderBy(asc(dayCol as any));
-
-    return rows;
-  }
-
   async update(
     transactionId: string,
     transaction: Transaction
