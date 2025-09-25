@@ -7,6 +7,7 @@ import {
 } from "./schemas/listTransactionQuerySchema";
 import { ListTransactionUseCase } from "@application/useCases/transactions/ListTransactionUseCase";
 import { Transaction } from "@application/entities/Transaction";
+import { TransactionListItem } from "@application/queries/types/TransactionListItem";
 
 @Injectable()
 export class ListTransactionController extends Controller<
@@ -47,7 +48,7 @@ export class ListTransactionController extends Controller<
 
 export namespace ListTransactionController {
   export type Response = {
-    items: Transaction[];
+    items: TransactionListItem[]; // <<< agora vem com refs
     total: number;
     page: string | undefined;
     pageSize: number;

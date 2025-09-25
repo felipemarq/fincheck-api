@@ -3,7 +3,10 @@ import { DatabaseService } from "..";
 import { accountsTable, categoriesTable, transactionsTable } from "../schema";
 import { AccountItem } from "../items/AccountItem";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { ListCategoriesQuery } from "@application/controllers/categories/schemas/listCategoriesQuerySchema";
+import { Category } from "@application/entities/Category";
+import { CategoryItem } from "../items/CategoryItem";
 
 export const DEFAULT_CATEGORIES: Array<{
   name: string;
@@ -56,6 +59,28 @@ export class CategoryRepository {
       .returning();
 
     return insertedCategories;
+  }
+
+  async listAll({
+    filters,
+    userId,
+  }: {
+    filters: ListCategoriesQuery;
+    userId: string;
+  }): Promise<Category[]> {
+    const whereClause = [
+      eq(categoriesTable.entityId, filters.entityId),
+      eq(categoriesTable.userId, userId),
+    ];
+
+    const whereExpr = and(...whereClause);
+
+    const cards = await this.databaseService.db
+      .select()
+      .from(categoriesTable)
+      .where(whereExpr);
+
+    return cards.map((row) => CategoryItem.fromRow(row));
   }
 
   async getTopCategories(

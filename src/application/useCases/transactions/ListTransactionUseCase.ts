@@ -2,6 +2,7 @@ import { ListTransactionQuery } from "@application/controllers/transactions/sche
 import { Account } from "@application/entities/Account";
 import { Transaction } from "@application/entities/Transaction";
 import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
+import { TransactionListItem } from "@application/queries/types/TransactionListItem";
 import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { TransactionRepository } from "@infra/database/neon/repositories/TransactionRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
@@ -21,6 +22,12 @@ export class ListTransactionUseCase {
       entityId: transactionInput.entityId,
     });
 
+    if (!entity) {
+      throw new UnauthorizedException(
+        "Usuário não tem permissão para editar transações nessa entidade."
+      );
+    }
+
     const result = await this.transactionRepository.listAll({
       filters: {
         ...transactionInput,
@@ -30,12 +37,6 @@ export class ListTransactionUseCase {
       userId: transactionInput.userId,
     });
 
-    if (!entity) {
-      throw new UnauthorizedException(
-        "Usuário não tem permissão para editar transações nessa entidade."
-      );
-    }
-
     return result;
   }
 }
@@ -43,7 +44,7 @@ export class ListTransactionUseCase {
 export namespace ListTransactionUseCase {
   export type Input = ListTransactionQuery & { userId: string };
   export type Output = {
-    items: Transaction[];
+    items: TransactionListItem[];
     total: number;
     page: string | undefined;
     pageSize: number;

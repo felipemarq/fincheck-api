@@ -1,11 +1,13 @@
 import { and, asc, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { DatabaseService } from "..";
-import { transactionsTable } from "../schema";
+import { accountsTable, categoriesTable, transactionsTable } from "../schema";
 import { Transaction } from "@application/entities/Transaction";
 import { TransactionItem } from "../items/TransactionItem";
 import { ListTransactionQuery } from "@application/controllers/transactions/schemas/listTransactionQuerySchema";
 import { types } from "util";
+import { TransactionListItem } from "@application/queries/types/TransactionListItem";
+import { Account } from "@application/entities/Account";
 
 type UpdatePatch = {
   bankAccountId?: string; // trocar conta
@@ -68,38 +70,33 @@ export class TransactionRepository {
     filters: ListTransactionQuery;
     userId: string;
   }) {
-    console.log({ filters });
+    // ---------- mesmo where da sua listAll ----------
     const whereClause = [
       eq(transactionsTable.entityId, filters.entityId),
       eq(transactionsTable.userId, userId),
-    ];
+    ] as any[];
 
     if (filters.accountId?.length) {
       whereClause.push(inArray(transactionsTable.accountId, filters.accountId));
     }
-
     if (filters.categoryId?.length) {
       whereClause.push(
         inArray(transactionsTable.categoryId, filters.categoryId)
       );
     }
-
     if (filters.type?.length) {
       whereClause.push(
         inArray(transactionsTable.type, filters.type as Transaction.Type[])
       );
     }
-
     if (typeof filters.isPaid === "boolean") {
       whereClause.push(eq(transactionsTable.isPaid, filters.isPaid));
     }
-
     if (filters.search && filters.search.trim()) {
       whereClause.push(
         ilike(transactionsTable.name, `%${filters.search.trim()}%`)
       );
     }
-
     if (filters.startDate)
       whereClause.push(gte(transactionsTable.date, filters.startDate));
     if (filters.endDate)
@@ -109,7 +106,6 @@ export class TransactionRepository {
     if (filters.dueDateEnd)
       whereClause.push(lte(transactionsTable.dueDate, filters.dueDateEnd));
 
-    // NUMERIC (string) -> compare/sort com CAST
     if (filters.minValue != null)
       whereClause.push(
         sql`${transactionsTable.value}::numeric >= ${Number(
@@ -125,7 +121,7 @@ export class TransactionRepository {
 
     const whereExpr = and(...whereClause);
 
-    // Ordenação primária + tie-breakers estáveis
+    // ---------- ordenação/tie-breakers idênticos ----------
     const orderCol =
       filters.sortBy === "value"
         ? sql`${transactionsTable.value}::numeric`
@@ -133,7 +129,7 @@ export class TransactionRepository {
         ? transactionsTable.name
         : filters.sortBy === "createdAt"
         ? transactionsTable.createdAt
-        : transactionsTable.date; // default "date"
+        : transactionsTable.date;
 
     const orderMain =
       filters.sortDir === "asc" ? asc(orderCol as any) : desc(orderCol as any);
@@ -142,28 +138,72 @@ export class TransactionRepository {
       desc(transactionsTable.id),
     ];
 
-    //paginação
-    const limit = Math.min(Math.max(Number(filters.pageSize!), 1), 100);
-    const offset = (Math.max(Number(filters.page!), 1) - 1) * limit;
+    // ---------- paginação ----------
+    const limit = Math.min(Math.max(Number(filters.pageSize ?? "10"), 1), 100);
+    const offset = (Math.max(Number(filters.page ?? "1"), 1) - 1) * limit;
 
-    // total (para paginação)
     const [{ total }] = await this.databaseService.db
       .select({ total: sql<number>`cast(count(*) as integer)` })
       .from(transactionsTable)
       .where(whereExpr);
 
-    // page
+    // ---------- SELECT com aliases (t, acc, cat) ----------
     const rows = await this.databaseService.db
-      .select()
+      .select({
+        t: transactionsTable, // transação inteira (para usar o TransactionItem)
+        acc: {
+          id: accountsTable.id,
+          name: accountsTable.name,
+          color: accountsTable.color,
+          type: accountsTable.type,
+        },
+        cat: {
+          id: categoriesTable.id,
+          name: categoriesTable.name,
+          icon: categoriesTable.icon,
+          type: categoriesTable.type,
+        },
+      })
       .from(transactionsTable)
+      .leftJoin(
+        accountsTable,
+        eq(accountsTable.id, transactionsTable.accountId)
+      )
+      .leftJoin(
+        categoriesTable,
+        eq(categoriesTable.id, transactionsTable.categoryId)
+      )
       .where(whereExpr)
       .orderBy(orderMain, ...orderTiebreakers)
       .limit(limit)
       .offset(offset);
 
-    const items = rows.map(TransactionItem.fromRow);
-    const hasNext = Number(filters.page!) * limit < total;
+    // ---------- mapping (mantém seu TransactionItem) ----------
+    const items: TransactionListItem[] = rows.map(({ t, acc, cat }) => {
+      const tx = TransactionItem.fromRow(t); // aqui você mantém todas as conversões (numeric->number etc)
 
+      return {
+        ...tx,
+        account: acc?.id
+          ? {
+              id: acc.id!,
+              name: acc.name!,
+              color: acc.color ?? "#868E96",
+              type: acc.type! as Account.Type, // "CHECKING" | "INVESTMENT" | "CASH"
+            }
+          : null,
+        category: cat?.id
+          ? {
+              id: cat.id!,
+              name: cat.name!,
+              icon: cat.icon!,
+              type: cat.type! as Transaction.Type, // "INCOME" | "EXPENSE"
+            }
+          : null,
+      };
+    });
+
+    const hasNext = Number(filters.page ?? "1") * limit < total;
     return { items, total, page: filters.page, pageSize: limit, hasNext };
   }
 
