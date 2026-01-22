@@ -34,14 +34,14 @@ export const createRecurringTransactionSchema = z
     }), // "INCOME" | "EXPENSE"
 
     startDate: z.coerce.date({ required_error: "Data é obrigatória" }),
-    endDate: z.coerce.date({ required_error: "Data é obrigatória" }),
+    endDate: z.coerce.date().optional(),
     recurrence: z.nativeEnum(RecurringTransaction.Recurrence, {
       required_error: "Tipo é obrigatório",
     }),
 
     notes: z.string().max(500, "Observações até 500 caracteres").optional(),
   })
-  .refine((data) => !data.startDate || data.endDate >= data.startDate, {
+  .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: "Data de término não pode ser anterior à data de início",
     path: ["startDate"],
   });
