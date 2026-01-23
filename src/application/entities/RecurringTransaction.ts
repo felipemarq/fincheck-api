@@ -66,6 +66,7 @@ export namespace RecurringTransaction {
     DAILY = "DAILY",
     WEEKLY = "WEEKLY",
     MONTHLY = "MONTHLY",
+    MINUTELY = "MINUTELY",
     YEARLY = "YEARLY",
   }
 }

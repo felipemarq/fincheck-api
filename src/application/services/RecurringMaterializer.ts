@@ -9,6 +9,16 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+function isoMinute(d: Date) {
+  return d.toISOString().slice(0, 16);
+}
+
+function recurringKey(rule: RecurringTransaction, occ: Date) {
+  return rule.recurrence === "MINUTELY"
+    ? `${rule.id}:${isoMinute(occ)}`
+    : `${rule.id}:${ymd(occ)}`;
+}
+
 @Injectable()
 export class RecurringMaterializer {
   constructor(private readonly database: DatabaseService) {}
@@ -31,7 +41,7 @@ export class RecurringMaterializer {
       from,
       to
     )) {
-      const key = `${rule.id}:${ymd(occ)}`;
+      const key = recurringKey(rule, occ);
 
       console.log(
         JSON.stringify({
