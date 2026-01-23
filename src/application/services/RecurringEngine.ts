@@ -1,9 +1,27 @@
 // src/application/services/RecurringEngine.ts
-export type RecurrenceKind = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+export type RecurrenceKind =
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "MINUTELY"
+  | "YEARLY";
 
 function startOfUTCDate(d: Date) {
   return new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+function startOfUTCMinute(d: Date) {
+  return new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth(),
+      d.getUTCDate(),
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      0,
+      0
+    )
   );
 }
 function addDays(d: Date, n: number) {
@@ -11,6 +29,9 @@ function addDays(d: Date, n: number) {
 }
 function addWeeks(d: Date, n: number) {
   return addDays(d, 7 * n);
+}
+function addMinutes(d: Date, n: number) {
+  return new Date(d.getTime() + n * 60000);
 }
 function addMonths(d: Date, n: number) {
   const dt = new Date(
@@ -38,10 +59,12 @@ export const RecurringEngine = {
     rangeStart: Date,
     rangeEnd: Date
   ): Generator<Date> {
-    const start = startOfUTCDate(
+    const normalize =
+      rule.recurrence === "MINUTELY" ? startOfUTCMinute : startOfUTCDate;
+    const start = normalize(
       rule.startDate > rangeStart ? rule.startDate : rangeStart
     );
-    const last = startOfUTCDate(
+    const last = normalize(
       rule.endDate && rule.endDate < rangeEnd ? rule.endDate : rangeEnd
     );
     if (start > last) return;
@@ -68,6 +91,14 @@ export const RecurringEngine = {
         while (d <= last) {
           yield d;
           d = addMonths(d, 1);
+        }
+        break;
+      }
+      case "MINUTELY": {
+        let d = start;
+        while (d <= last) {
+          yield d;
+          d = addMinutes(d, 1);
         }
         break;
       }

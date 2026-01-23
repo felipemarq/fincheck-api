@@ -54,6 +54,7 @@ export const recurrenceType = pgEnum("recurrence_type", [
   "DAILY",
   "WEEKLY",
   "MONTHLY",
+  "MINUTELY",
   "YEARLY",
 ]);
 

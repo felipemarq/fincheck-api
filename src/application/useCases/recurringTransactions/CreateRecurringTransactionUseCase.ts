@@ -38,19 +38,27 @@ export class CreateRecurringTransactionUseCase {
       recurringTransaction
     );
 
-    console.log(this.appConfig);
-
-    // horizonte inicial – hoje até +90 dias (ou use created.startDate)
-    const start = new Date();
-    const end = new Date(
+    // horizonte inicial – hoje até +horizonDays, respeitando start/end da regra
+    const now = new Date();
+    const horizonEnd = new Date(
       Date.now() + this.appConfig.recurrence.horizonDays * 24 * 60 * 60 * 1000
     );
+    const start =
+      createdTransaction.startDate > now
+        ? createdTransaction.startDate
+        : now;
+    const end =
+      createdTransaction.endDate && createdTransaction.endDate < horizonEnd
+        ? createdTransaction.endDate
+        : horizonEnd;
 
-    await this.recurringMaterializer.materializeWithin(
-      createdTransaction,
-      start,
-      end
-    );
+    if (start <= end) {
+      await this.recurringMaterializer.materializeWithin(
+        createdTransaction,
+        start,
+        end
+      );
+    }
 
     return createdTransaction;
   }
@@ -63,12 +71,14 @@ export namespace CreateRecurringTransactionUseCase {
     accountId: string;
     categoryId: string;
     creditCardId?: string;
+    contactId?: string;
     name: string;
     value: number;
     startDate: Date;
-    endDate: Date;
+    endDate?: Date;
     recurrence: RecurringTransaction.Recurrence;
     type: Transaction.Type;
+    notes?: string;
   };
   export type Output = RecurringTransaction;
 }
