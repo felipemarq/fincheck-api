@@ -32,7 +32,7 @@ export class CreateTransactionController extends Controller<
     });
 
     return {
-      statusCode: 200,
+      statusCode: 201,
       body: {
         transaction,
       },

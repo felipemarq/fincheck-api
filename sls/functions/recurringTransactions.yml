@@ -29,7 +29,7 @@ deleteRecurringTransaction:
   handler: src/main/functions/recurringTransactions/deleteRecurringTransaction.handler
   events:
     - httpApi:
-        path: /recurring-transactions/{recurringTransactionId}/{entityId}
+        path: /entities/{entityId}/recurring-transactions/{recurringTransactionId}
         method: DELETE
         authorizer:
           name: CognitoAuthorizer

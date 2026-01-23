@@ -1,7 +1,10 @@
 import { Controller } from "@application/contracts/Controller";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { Transaction } from "@application/entities/Transaction";
-import { DeleteTransactionParams } from "./schemas/deleteTransactionParamsSchema";
+import {
+  DeleteTransactionParams,
+  deleteTransactionParamsSchema,
+} from "./schemas/deleteTransactionParamsSchema";
 import { DeleteTransactionUseCase } from "@application/useCases/transactions/DeleteTransactionUseCase";
 
 @Injectable()
@@ -24,9 +27,10 @@ export class DeleteTransactionController extends Controller<
     Record<string, any>,
     DeleteTransactionParams
   >): Promise<Controller.Response<DeleteTransactionController.Response>> {
+    const deleteParams = deleteTransactionParamsSchema.parse(params);
     const { statusCode } = await this.deteleTransactionUseCase.execute({
-      trasactionId: params.transactionId,
-      entityId: params.entityId,
+      trasactionId: deleteParams.transactionId,
+      entityId: deleteParams.entityId,
       userId,
     });
 

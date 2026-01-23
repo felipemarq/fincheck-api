@@ -15,16 +15,6 @@ export class UpdateCreditCardUseCase {
   async execute(
     creditCardInput: UpdateCreditCardUseCase.Input
   ): Promise<UpdateCreditCardUseCase.Output> {
-    const transaction = new CreditCard({
-      ...creditCardInput,
-      createdAt: creditCardInput.createdAt
-        ? new Date(creditCardInput.createdAt)
-        : undefined,
-      updatedAt: creditCardInput.updatedAt
-        ? new Date(creditCardInput.updatedAt)
-        : undefined,
-    });
-
     const entity = await this.entityRepository.findByUserId({
       userId: creditCardInput.userId,
       entityId: creditCardInput.entityId,
@@ -36,9 +26,30 @@ export class UpdateCreditCardUseCase {
       );
     }
 
+    const creditCardExists = await this.creditCardRepository.findOne({
+      creditCardId: creditCardInput.id,
+      entityId: creditCardInput.entityId,
+      userId: creditCardInput.userId,
+    });
+
+    if (!creditCardExists) {
+      throw new UnauthorizedException("Cartão não encontrado para editar.");
+    }
+
+    const creditCard = new CreditCard({
+      ...creditCardExists,
+      ...creditCardInput,
+      createdAt: creditCardInput.createdAt
+        ? new Date(creditCardInput.createdAt)
+        : creditCardExists.createdAt,
+      updatedAt: creditCardInput.updatedAt
+        ? new Date(creditCardInput.updatedAt)
+        : creditCardExists.updatedAt,
+    });
+
     const updatedTransaction = await this.creditCardRepository.update(
       creditCardInput.id,
-      transaction
+      creditCard
     );
 
     return updatedTransaction;
@@ -46,8 +57,10 @@ export class UpdateCreditCardUseCase {
 }
 
 export namespace UpdateCreditCardUseCase {
-  export type Input = CreateCreditCardUseCase.Input & {
+  export type Input = Partial<CreateCreditCardUseCase.Input> & {
     id: string;
+    entityId: string;
+    userId: string;
     createdAt?: string;
     updatedAt?: string;
   };

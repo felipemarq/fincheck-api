@@ -141,6 +141,34 @@ export class RecurringTransactionRepository {
     return RecurringTransactionItem.fromRow(updated);
   }
 
+  async findOne({
+    recurringTransactionId,
+    entityId,
+    userId,
+  }: {
+    recurringTransactionId: string;
+    entityId: string;
+    userId: string;
+  }): Promise<RecurringTransaction | null> {
+    const [row] = await this.databaseService.db
+      .select()
+      .from(recurringTransactionsTable)
+      .where(
+        and(
+          eq(recurringTransactionsTable.id, recurringTransactionId),
+          eq(recurringTransactionsTable.entityId, entityId),
+          eq(recurringTransactionsTable.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return RecurringTransactionItem.fromRow(row);
+  }
+
   async delete(params: {
     id: string;
     entityId: string;

@@ -1,10 +1,15 @@
 import { Account } from "@application/entities/Account";
+import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
 import { AccountRepository } from "@infra/database/neon/repositories/AccountRepository";
+import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
 @Injectable()
 export class CreateAccountUseCase {
-  constructor(private readonly accountRepository: AccountRepository) {}
+  constructor(
+    private readonly accountRepository: AccountRepository,
+    private readonly entityRepository: EntityRepository
+  ) {}
 
   async execute({
     entityId,
@@ -14,6 +19,17 @@ export class CreateAccountUseCase {
     userId,
     color,
   }: CreateAccountUseCase.Input): Promise<CreateAccountUseCase.Output> {
+    const entity = await this.entityRepository.findByUserId({
+      userId,
+      entityId,
+    });
+
+    if (!entity) {
+      throw new UnauthorizedException(
+        "Usuário não tem permissão para criar contas nessa entidade."
+      );
+    }
+
     const account = new Account({
       entityId,
       initialBalance,

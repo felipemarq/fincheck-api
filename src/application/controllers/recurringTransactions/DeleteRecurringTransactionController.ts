@@ -1,6 +1,9 @@
 import { Controller } from "@application/contracts/Controller";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { DeleteRecurringTransactionParams } from "./schemas/deleteRecurringTransactionParamsSchema";
+import {
+  DeleteRecurringTransactionParams,
+  deleteRecurringTransactionParamsSchema,
+} from "./schemas/deleteRecurringTransactionParamsSchema";
 import { DeleteRecurringTransactionUseCase } from "@application/useCases/recurringTransactions/DeleteRecurringTransactionUseCase";
 
 @Injectable()
@@ -25,10 +28,11 @@ export class DeleteRecurringTransactionController extends Controller<
   >): Promise<
     Controller.Response<DeleteRecurringTransactionController.Response>
   > {
+    const deleteParams = deleteRecurringTransactionParamsSchema.parse(params);
     const { statusCode } = await this.deteleRecurringTransactionUseCase.execute(
       {
-        recurringTransactionId: params.recurringTransactionId,
-        entityId: params.entityId,
+        recurringTransactionId: deleteParams.recurringTransactionId,
+        entityId: deleteParams.entityId,
         userId,
       }
     );

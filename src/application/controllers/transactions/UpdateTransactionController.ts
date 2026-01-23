@@ -7,7 +7,10 @@ import {
   updateTransactionSchema,
 } from "./schemas/updateTransactionSchema";
 import { UpdateTransactionUseCase } from "@application/useCases/transactions/UpdateTransactionUseCase";
-import { UpdateTransactionParams } from "./schemas/updateTransactionParamsSchema";
+import {
+  UpdateTransactionParams,
+  updateTransactionParamsSchema,
+} from "./schemas/updateTransactionParamsSchema";
 
 @Injectable()
 @Schema(updateTransactionSchema)
@@ -30,8 +33,9 @@ export class UpdateTransactionController extends Controller<
     UpdateTransactionBody,
     UpdateTransactionParams
   >): Promise<Controller.Response<UpdateTransactionController.Response>> {
+    const updateParams = updateTransactionParamsSchema.parse(params);
     const transaction = await this.updateTransactionUseCase.execute({
-      id: params.transactionId,
+      id: updateParams.transactionId,
       ...body,
       userId,
     });

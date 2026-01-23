@@ -1,7 +1,10 @@
 import { Schema } from "@kernel/decorators/Schema";
 import { Controller } from "@application/contracts/Controller";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { UpdateRecurringTransactionParams } from "./schemas/updateRecurringTransactionParamsSchema";
+import {
+  UpdateRecurringTransactionParams,
+  updateRecurringTransactionParamsSchema,
+} from "./schemas/updateRecurringTransactionParamsSchema";
 import {
   UpdateRecurringTransactionBody,
   updateRecurringTransactionSchema,
@@ -32,9 +35,10 @@ export class UpdateRecurringTransactionController extends Controller<
   >): Promise<
     Controller.Response<UpdateRecurringTransactionController.Response>
   > {
+    const updateParams = updateRecurringTransactionParamsSchema.parse(params);
     const recurringTransaction =
       await this.updateRecurringTransactionUseCase.execute({
-        id: params.recurringTransactionId,
+        id: updateParams.recurringTransactionId,
         ...body,
         userId,
       });
