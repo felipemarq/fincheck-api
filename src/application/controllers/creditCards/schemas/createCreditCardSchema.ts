@@ -2,8 +2,8 @@ import { Account } from "@application/entities/Account";
 import { z } from "zod";
 
 export const createCreditCardSchema = z.object({
-  entityId: z.string().min(1, "Id da entidade é obrigatório"),
-  accountId: z.string().min(1, "Id da conta é obrigatório"),
+  entityId: z.string().uuid("Id da entidade inválido"),
+  accountId: z.string().uuid("Id da conta inválido"),
   name: z.string().min(1, "Nome é obrigatório"),
   color: z.string().optional(),
   closingDay: z.number().min(1, "Dia de fechamento é obrigatório"),

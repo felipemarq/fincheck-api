@@ -6,7 +6,6 @@ import {
   ListAccountsParams,
   listAccountsParamsSchema,
 } from "./schemas/listAccountsParamsSchema";
-import { Schema } from "@kernel/decorators/Schema";
 
 @Injectable()
 export class ListAccountsController extends Controller<
@@ -26,10 +25,10 @@ export class ListAccountsController extends Controller<
     Record<string, any>,
     ListAccountsParams
   >): Promise<Controller.Response<ListAccountsController.Response>> {
-    console.log({ params });
+    const listParams = listAccountsParamsSchema.parse(params);
 
     const accounts = await this.listAccountsUseCase.execute({
-      entityId: params.entityId,
+      entityId: listParams.entityId,
       userId,
     });
 

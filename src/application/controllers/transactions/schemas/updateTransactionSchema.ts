@@ -2,6 +2,8 @@
 import { z } from "zod";
 import { createTransactionSchema } from "./createTransactionSchema";
 
-export const updateTransactionSchema = createTransactionSchema;
+export const updateTransactionSchema = createTransactionSchema.partial().extend({
+  entityId: createTransactionSchema.shape.entityId,
+});
 
 export type UpdateTransactionBody = z.infer<typeof updateTransactionSchema>;

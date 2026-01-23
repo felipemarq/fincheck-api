@@ -6,7 +6,6 @@ import {
   forgotPasswordSchema,
 } from "./schemas/forgotPasswordSchema";
 import { ForgotPasswordUseCase } from "@application/useCases/auth/ForgotPasswordUseCase";
-import { BadRequestException } from "@application/errors/http/BadRequestException";
 
 @Injectable()
 @Schema(forgotPasswordSchema)
@@ -23,18 +22,14 @@ export class ForgotPasswordController extends Controller<
   }: Controller.Request<"public", ForgotPasswordBody>): Promise<
     Controller.Response<ForgotPasswordController.Response>
   > {
-    try {
-      const { email } = body;
+    const { email } = body;
 
-      await this.forgotPasswordUseCase.execute({
-        email,
-      });
-      return {
-        statusCode: 204,
-      };
-    } catch (error) {
-      throw new BadRequestException();
-    }
+    await this.forgotPasswordUseCase.execute({
+      email,
+    });
+    return {
+      statusCode: 204,
+    };
   }
 }
 

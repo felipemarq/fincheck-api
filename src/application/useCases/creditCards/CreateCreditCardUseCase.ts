@@ -1,10 +1,15 @@
 import { CreditCard } from "@application/entities/CreditCard";
+import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
 import { CreditCardRepository } from "@infra/database/neon/repositories/CreditCardRepository";
+import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
 @Injectable()
 export class CreateCreditCardUseCase {
-  constructor(private readonly creditCardRepository: CreditCardRepository) {}
+  constructor(
+    private readonly creditCardRepository: CreditCardRepository,
+    private readonly entityRepository: EntityRepository
+  ) {}
 
   async execute({
     entityId,
@@ -16,6 +21,17 @@ export class CreateCreditCardUseCase {
     closingDay,
     dueDay,
   }: CreateCreditCardUseCase.Input): Promise<CreateCreditCardUseCase.Output> {
+    const entity = await this.entityRepository.findByUserId({
+      userId,
+      entityId,
+    });
+
+    if (!entity) {
+      throw new UnauthorizedException(
+        "Usuário não tem permissão para criar cartões nessa entidade."
+      );
+    }
+
     const creditCard = new CreditCard({
       entityId,
       userId,

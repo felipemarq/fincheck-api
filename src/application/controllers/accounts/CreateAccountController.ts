@@ -32,7 +32,7 @@ export class CreateAccountController extends Controller<
     });
 
     return {
-      statusCode: 200,
+      statusCode: 201,
       body: {
         account,
       },

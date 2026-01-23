@@ -5,7 +5,10 @@ import {
   UpdateCreditCardBody,
   updateCreditCardSchema,
 } from "./schemas/updateCreditCardSchema";
-import { UpdateCreditCardParams } from "./schemas/updateCreditCardParamsSchema";
+import {
+  UpdateCreditCardParams,
+  updateCreditCardParamsSchema,
+} from "./schemas/updateCreditCardParamsSchema";
 import { CreditCard } from "@application/entities/CreditCard";
 import { UpdateCreditCardUseCase } from "@application/useCases/creditCards/UpdateCreditCardUseCase";
 
@@ -30,8 +33,9 @@ export class UpdateCreditCardController extends Controller<
     UpdateCreditCardBody,
     UpdateCreditCardParams
   >): Promise<Controller.Response<UpdateCreditCardController.Response>> {
+    const updateParams = updateCreditCardParamsSchema.parse(params);
     const creditCard = await this.updateCreditCardUseCase.execute({
-      id: params.creditCardId,
+      id: updateParams.creditCardId,
       ...body,
       userId,
     });

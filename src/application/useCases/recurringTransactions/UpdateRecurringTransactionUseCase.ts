@@ -15,10 +15,6 @@ export class UpdateRecurringTransactionUseCase {
   async execute(
     recurringTransactionInput: UpdateRecurringTransactionUseCase.Input
   ): Promise<UpdateRecurringTransactionUseCase.Output> {
-    const recurringTransaction = new RecurringTransaction(
-      recurringTransactionInput
-    );
-
     const entity = await this.entityRepository.findByUserId({
       userId: recurringTransactionInput.userId,
       entityId: recurringTransactionInput.entityId,
@@ -30,6 +26,24 @@ export class UpdateRecurringTransactionUseCase {
       );
     }
 
+    const recurringTransactionExists =
+      await this.recurringTransactionRepository.findOne({
+        recurringTransactionId: recurringTransactionInput.id,
+        entityId: recurringTransactionInput.entityId,
+        userId: recurringTransactionInput.userId,
+      });
+
+    if (!recurringTransactionExists) {
+      throw new UnauthorizedException(
+        "Transação recorrente não encontrada para editar."
+      );
+    }
+
+    const recurringTransaction = new RecurringTransaction({
+      ...recurringTransactionExists,
+      ...recurringTransactionInput,
+    });
+
     const updatedTransaction = await this.recurringTransactionRepository.update(
       recurringTransactionInput.id,
       recurringTransaction
@@ -40,8 +54,10 @@ export class UpdateRecurringTransactionUseCase {
 }
 
 export namespace UpdateRecurringTransactionUseCase {
-  export type Input = CreateRecurringTransactionUseCase.Input & {
+  export type Input = Partial<CreateRecurringTransactionUseCase.Input> & {
     id: string;
+    entityId: string;
+    userId: string;
   };
   export type Output = RecurringTransaction;
 }

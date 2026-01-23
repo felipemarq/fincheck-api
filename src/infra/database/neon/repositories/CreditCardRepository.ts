@@ -62,4 +62,32 @@ export class CreditCardRepository {
       .returning();
     return CreditCardItem.fromRow(updated);
   }
+
+  async findOne({
+    creditCardId,
+    entityId,
+    userId,
+  }: {
+    creditCardId: string;
+    entityId: string;
+    userId: string;
+  }): Promise<CreditCard | null> {
+    const [row] = await this.databaseService.db
+      .select()
+      .from(creditCardsTable)
+      .where(
+        and(
+          eq(creditCardsTable.id, creditCardId),
+          eq(creditCardsTable.entityId, entityId),
+          eq(creditCardsTable.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return CreditCardItem.fromRow(row);
+  }
 }

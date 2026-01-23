@@ -29,7 +29,7 @@ deleteTransaction:
   handler: src/main/functions/transactions/deleteTransaction.handler
   events:
     - httpApi:
-        path: /transactions/{transactionId}/{entityId}
+        path: /entities/{entityId}/transactions/{transactionId}
         method: DELETE
         authorizer:
           name: CognitoAuthorizer

@@ -16,8 +16,6 @@ export class UpdateTransactionUseCase {
   async execute(
     transactionInput: UpdateTransactionUseCase.Input
   ): Promise<UpdateTransactionUseCase.Output> {
-    const transaction = new Transaction(transactionInput);
-
     const entity = await this.entityRepository.findByUserId({
       userId: transactionInput.userId,
       entityId: transactionInput.entityId,
@@ -39,6 +37,11 @@ export class UpdateTransactionUseCase {
       throw new UnauthorizedException("Transação não encontrada para editar.");
     }
 
+    const transaction = new Transaction({
+      ...transactionExists,
+      ...transactionInput,
+    });
+
     const updatedTransaction = await this.transactionRepository.update(
       transactionInput.id,
       transaction
@@ -49,8 +52,10 @@ export class UpdateTransactionUseCase {
 }
 
 export namespace UpdateTransactionUseCase {
-  export type Input = CreateTransactionUseCase.Input & {
+  export type Input = Partial<CreateTransactionUseCase.Input> & {
     id: string;
+    entityId: string;
+    userId: string;
   };
   export type Output = Transaction;
 }
