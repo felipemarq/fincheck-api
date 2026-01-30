@@ -2,8 +2,19 @@
 import { z } from "zod";
 import { createTransactionSchema } from "./createTransactionSchema";
 
-export const updateTransactionSchema = createTransactionSchema.partial().extend({
-  entityId: createTransactionSchema.shape.entityId,
-});
+const baseTransactionSchema = createTransactionSchema.innerType();
+
+export const updateTransactionSchema = baseTransactionSchema
+  .partial()
+  .extend({
+    entityId: baseTransactionSchema.shape.entityId,
+  })
+  .refine(
+    (data) => !data.dueDate || !data.date || data.dueDate >= data.date,
+    {
+      message: "dueDate não pode ser anterior à data",
+      path: ["dueDate"],
+    },
+  );
 
 export type UpdateTransactionBody = z.infer<typeof updateTransactionSchema>;
