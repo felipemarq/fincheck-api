@@ -1,5 +1,5 @@
 import esbuildPluginTsc from "esbuild-plugin-tsc";
-export default (serverless) => ({
+export default () => ({
   bundle: true,
   minify: true,
   sourcemap: false,

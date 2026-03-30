@@ -1,6 +1,6 @@
 import { Injectable } from "@kernel/decorators/Injectable";
 import { DatabaseService } from "..";
-import { entitiesTable, usersTable } from "../schema";
+import { entitiesTable } from "../schema";
 import { and, eq } from "drizzle-orm";
 import { Entity } from "@application/entities/Entity";
 
@@ -40,9 +40,9 @@ export class EntityRepository {
     return entity;
   }
 
-  async delete(userId: string) {
+  async delete(entityId: string) {
     await this.databaseService.db
-      .delete(usersTable)
-      .where(eq(usersTable.id, userId));
+      .delete(entitiesTable)
+      .where(eq(entitiesTable.id, entityId));
   }
 }

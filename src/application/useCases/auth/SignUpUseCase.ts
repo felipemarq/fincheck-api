@@ -18,6 +18,7 @@ export class SignUpUseCase {
     private readonly categoryRepository: CategoryRepository,
     private readonly saga: Saga
   ) {}
+
   async execute({
     email,
     name,
@@ -29,15 +30,19 @@ export class SignUpUseCase {
       if (userAlreadyExists) {
         throw new ConflictException("Este email já está cadastrado.");
       }
+
       const user = new User({ email, name });
-
       const pendingUser = await this.userRepository.create(user);
-
-      //SignUp Unit of Work
 
       if (!pendingUser) {
         throw new BadRequestException("Erro ao criar usuário");
       }
+
+      // Roll back the local user and its cascaded entity/categories if any
+      // subsequent step in the signup pipeline fails.
+      this.saga.addCompensation(() =>
+        this.userRepository.delete(pendingUser.id)
+      );
 
       const entity = new Entity({
         name: pendingUser.name,
@@ -52,23 +57,21 @@ export class SignUpUseCase {
         internalId: pendingUser.id,
       });
 
+      this.saga.addCompensation(() =>
+        this.authGateway.deleteUser({ externalId })
+      );
+
       await this.userRepository.setExternalId(externalId, pendingUser.id);
       await this.categoryRepository.seedDefault({
         entityId: createdEntity.id,
         userId: pendingUser.id,
       });
 
-      this.saga.addCompensation(() =>
-        this.userRepository.delete(pendingUser.id)
-      );
-      this.saga.addCompensation(() =>
-        this.authGateway.deleteUser({ externalId })
-      );
-
       const { accessToken, refreshToken } = await this.authGateway.signIn({
         email,
         password,
       });
+
       return { accessToken, refreshToken };
     });
   }

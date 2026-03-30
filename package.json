@@ -1,9 +1,10 @@
 {
-  "name": "foodiary-api",
+  "name": "fincheck-api",
   "version": "1.0.0",
-  "description": "",
+  "description": "Fincheck backend API",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "dev:email": "email dev --dir src/infra/emails/templates"
   },
