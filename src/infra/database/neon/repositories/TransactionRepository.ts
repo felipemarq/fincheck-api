@@ -1,7 +1,12 @@
 import { and, asc, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { DatabaseService } from "..";
-import { accountsTable, categoriesTable, transactionsTable } from "../schema";
+import {
+  accountsTable,
+  categoriesTable,
+  contactsTable,
+  transactionsTable,
+} from "../schema";
 import { Transaction } from "@application/entities/Transaction";
 import { TransactionItem } from "../items/TransactionItem";
 import { ListTransactionQuery } from "@application/controllers/transactions/schemas/listTransactionQuerySchema";
@@ -84,6 +89,9 @@ export class TransactionRepository {
         inArray(transactionsTable.categoryId, filters.categoryId)
       );
     }
+    if (filters.contactId?.length) {
+      whereClause.push(inArray(transactionsTable.contactId, filters.contactId));
+    }
     if (filters.type?.length) {
       whereClause.push(
         inArray(transactionsTable.type, filters.type as Transaction.Type[])
@@ -165,6 +173,12 @@ export class TransactionRepository {
           icon: categoriesTable.icon,
           type: categoriesTable.type,
         },
+        contact: {
+          id: contactsTable.id,
+          name: contactsTable.name,
+          email: contactsTable.email,
+          phone: contactsTable.phone,
+        },
       })
       .from(transactionsTable)
       .leftJoin(
@@ -175,13 +189,14 @@ export class TransactionRepository {
         categoriesTable,
         eq(categoriesTable.id, transactionsTable.categoryId)
       )
+      .leftJoin(contactsTable, eq(contactsTable.id, transactionsTable.contactId))
       .where(whereExpr)
       .orderBy(orderMain, ...orderTiebreakers)
       .limit(limit)
       .offset(offset);
 
     // ---------- mapping (mantém seu TransactionItem) ----------
-    const items: TransactionListItem[] = rows.map(({ t, acc, cat }) => {
+    const items: TransactionListItem[] = rows.map(({ t, acc, cat, contact }) => {
       const tx = TransactionItem.fromRow(t); // aqui você mantém todas as conversões (numeric->number etc)
 
       return {
@@ -200,6 +215,14 @@ export class TransactionRepository {
               name: cat.name!,
               icon: cat.icon!,
               type: cat.type! as Transaction.Type, // "INCOME" | "EXPENSE"
+            }
+          : null,
+        contact: contact?.id
+          ? {
+              id: contact.id!,
+              name: contact.name!,
+              email: contact.email,
+              phone: contact.phone,
             }
           : null,
       };

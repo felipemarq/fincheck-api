@@ -42,7 +42,8 @@
 
 Observacoes:
 
-- `GET /transactions` aceita filtros por `entityId`, `type`, `isPaid`, `accountId`, `categoryId`, faixas de `date` e `dueDate`, alem de ordenacao por `date`, `dueDate`, `createdAt`, `value` e `name`.
+- `GET /transactions` aceita filtros por `entityId`, `type`, `isPaid`, `accountId`, `categoryId`, `contactId`, faixas de `date` e `dueDate`, alem de ordenacao por `date`, `dueDate`, `createdAt`, `value` e `name`.
+- A listagem de transacoes tambem devolve as referencias resolvidas de conta, categoria e contato para apoiar telas operacionais no Web.
 
 ## Recorrencias
 

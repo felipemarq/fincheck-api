@@ -39,6 +39,7 @@ export const listTransactionQuerySchema = z.object({
   entityId: z.string().uuid(),
   accountId: csvToUuidArray.optional(),
   categoryId: csvToUuidArray.optional(),
+  contactId: csvToUuidArray.optional(),
   type: csvToTransactionTypeArray.optional(),
   isPaid: optionalBool,
   startDate: optionalDate,

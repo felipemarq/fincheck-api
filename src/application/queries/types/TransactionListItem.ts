@@ -15,4 +15,10 @@ export type TransactionListItem = Transaction & {
     icon: string;
     type: Transaction.Type;
   } | null;
+  contact: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
 };
