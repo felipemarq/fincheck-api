@@ -59,6 +59,7 @@ functions:
   - ${file(./sls/functions/contacts.yml)}
   - ${file(./sls/functions/taxes.yml)}
   - ${file(./sls/functions/dashboard.yml)}
+  - ${file(./sls/functions/entities.yml)}
   - ${file(./sls/functions/users.yml)}
   - ${file(./sls/functions/categories.yml)}
 

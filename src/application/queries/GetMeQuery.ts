@@ -7,7 +7,7 @@ import { DatabaseService } from "@infra/database/neon";
 import { UserRepository } from "@infra/database/neon/repositories/UserRepository";
 import { entitiesTable, usersTable } from "@infra/database/neon/schema";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 @Injectable()
 export class GetMeQuery {
@@ -18,7 +18,8 @@ export class GetMeQuery {
       .select()
       .from(usersTable)
       .leftJoin(entitiesTable, eq(usersTable.id, entitiesTable.ownerUserId))
-      .where(eq(usersTable.id, getMeQueryInput.userId));
+      .where(eq(usersTable.id, getMeQueryInput.userId))
+      .orderBy(asc(entitiesTable.createdAt), asc(entitiesTable.name));
 
     if (rows.length === 0) {
       throw new UnauthorizedException(

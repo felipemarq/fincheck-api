@@ -12,6 +12,11 @@
 
 - `GET /me`
 
+## Entidades
+
+- `POST /entities`
+- `PATCH /entities/{entityId}`
+
 ## Contas
 
 - `POST /accounts`

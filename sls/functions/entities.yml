@@ -1,0 +1,17 @@
+createEntity:
+  handler: src/main/functions/entities/createEntity.handler
+  events:
+    - httpApi:
+        path: /entities
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+updateEntity:
+  handler: src/main/functions/entities/updateEntity.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

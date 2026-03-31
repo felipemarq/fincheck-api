@@ -15,6 +15,7 @@ Backend serverless do Fincheck. A API atende o Web, autentica usuarios com Cogni
 ## Modulos disponiveis hoje
 
 - Autenticacao: cadastro, login, refresh token e recuperacao de senha
+- Entidades PF/PJ com criacao e edicao
 - Usuario atual: `/me`
 - Contas
 - Categorias

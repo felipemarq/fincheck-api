@@ -15,6 +15,8 @@
 - `POST /auth/forgot-password`
 - `POST /auth/forgot-password/confirm`
 - `GET /me`
+- `POST /entities`
+- `PATCH /entities/{entityId}`
 - `POST /accounts`
 - `GET /entities/{entityId}/accounts`
 - `GET /categories`

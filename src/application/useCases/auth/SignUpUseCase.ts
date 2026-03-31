@@ -63,7 +63,7 @@ export class SignUpUseCase {
 
       await this.userRepository.setExternalId(externalId, pendingUser.id);
       await this.categoryRepository.seedDefault({
-        entityId: createdEntity.id,
+        entityId: createdEntity.id!,
         userId: pendingUser.id,
       });
 
