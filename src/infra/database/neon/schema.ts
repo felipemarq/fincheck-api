@@ -39,6 +39,9 @@ export type NewTaxRateRow = typeof taxRates.$inferInsert;
 export type CategoryRow = typeof categoriesTable.$inferSelect; // ou InferSelectModel<typeof categoriesTable>
 export type NewCategoryRow = typeof categoriesTable.$inferInsert; // ou InferInsertModel<typeof categoriesTable>
 
+export type ContactRow = typeof contactsTable.$inferSelect;
+export type NewContactRow = typeof contactsTable.$inferInsert;
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento

@@ -8,7 +8,7 @@
 - `POST /auth/forgot-password/confirm`
 - `POST /auth/refresh-token`
 
-## Usuário
+## Usuario
 
 - `GET /me`
 
@@ -21,14 +21,21 @@
 
 - `GET /categories?entityId={entityId}`
 
-## Transações
+## Contatos
+
+- `POST /entities/{entityId}/contacts`
+- `GET /entities/{entityId}/contacts`
+- `PATCH /entities/{entityId}/contacts/{contactId}`
+- `DELETE /entities/{entityId}/contacts/{contactId}`
+
+## Transacoes
 
 - `POST /transactions`
 - `GET /transactions`
 - `PATCH /transactions/{transactionId}`
 - `DELETE /entities/{entityId}/transactions/{transactionId}`
 
-## Recorrências
+## Recorrencias
 
 - `POST /recurring-transactions`
 - `GET /recurring-transactions`
@@ -39,9 +46,9 @@
 
 - `GET /dashboard`
 
-## Outros módulos já expostos
+## Outros modulos expostos
 
 - `POST /credit-cards`
 - `GET /credit-cards`
 - `PATCH /credit-cards/{creditCardId}`
-- `POST /taxes`
+- `PUT /entities/{entityId}/tax-rates/{year}/{month}`

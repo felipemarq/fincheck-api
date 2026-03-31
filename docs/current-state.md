@@ -1,45 +1,48 @@
 # Estado atual da API
 
-## O que está sólido
+## O que esta solido
 
-- Estrutura por camadas está consistente.
-- `typecheck` e `lint` estão habilitados no repositório.
-- Fluxos principais de auth, contas, transações, recorrências e dashboard já existem.
-- O modelo de dados já foi desenhado pensando em expansão do produto.
+- Estrutura por camadas consistente.
+- `typecheck` e `lint` habilitados no repositorio.
+- Fluxos principais de auth, contas, transacoes, recorrencias, dashboard e contatos ja existem.
+- O modelo de dados foi desenhado pensando em expansao do produto.
 
 ## O que o frontend usa hoje
 
 - `POST /auth/sign-up`
 - `POST /auth/sign-in`
 - `POST /auth/refresh-token`
+- `POST /auth/forgot-password`
+- `POST /auth/forgot-password/confirm`
 - `GET /me`
 - `POST /accounts`
 - `GET /entities/{entityId}/accounts`
 - `GET /categories`
-- `GET/POST/PATCH` de cartões
-- `GET/POST/PATCH/DELETE` de transações
-- `GET/POST/PATCH/DELETE` de recorrências
+- `GET/POST/PATCH` de cartoes
+- `GET/POST/PATCH/DELETE` de contatos
+- `GET/POST/PATCH/DELETE` de transacoes
+- `GET/POST/PATCH/DELETE` de recorrencias
+- `PUT` de impostos mensais
 - `GET /dashboard`
 
-## O que já existe mas ainda não virou produto completo
+## O que ja existe mas ainda nao virou produto completo
 
-- Cartões de crédito
+- Cartoes de credito
 - Impostos mensais
-- Contatos
 - Parcelamento
-- Idempotência
+- Idempotencia
 - Auditoria
+- Investimentos e relatorios
 
-## Correções estruturais aplicadas neste pacote
+## Correcoes estruturais aplicadas na base
 
-- Ajuste do fluxo de signup para registrar compensações no momento correto.
-- Correção do `package.json`, `.env.example` e baseline de lint.
-- Limpeza da documentação herdada do scaffold.
+- Ajuste do fluxo de signup para registrar compensacoes no momento correto.
+- Correcao do `package.json`, `.env.example` e baseline de lint.
+- Limpeza da documentacao herdada do scaffold.
+- Alinhamento dos contratos usados pelo Web.
 
-## Próximo passo recomendado
+## Proximo passo recomendado
 
-Fechar a experiência do core financeiro antes de abrir novos módulos:
-
-1. consolidar contas, transações e recorrências
-2. estabilizar contratos com o Web
-3. abrir cartões e impostos como próximos módulos visíveis
+1. Consolidar relatorios e filtros mais ricos no dominio financeiro.
+2. Expor os modulos ainda modelados no banco, como investimentos e parcelamento.
+3. Adicionar testes de contrato e cobertura minima de use cases criticos.

@@ -1,6 +1,6 @@
 # Fincheck API
 
-Backend serverless do Fincheck. A aplicação expõe a API HTTP usada pelo Web, autentica usuários com Cognito e persiste os dados financeiros no Neon/Postgres via Drizzle.
+Backend serverless do Fincheck. A API atende o Web, autentica usuarios com Cognito e persiste os dados financeiros no Neon/Postgres via Drizzle.
 
 ## Stack
 
@@ -12,16 +12,17 @@ Backend serverless do Fincheck. A aplicação expõe a API HTTP usada pelo Web, 
 - Neon Postgres
 - Drizzle ORM
 
-## Módulos disponíveis hoje
+## Modulos disponiveis hoje
 
-- Autenticação: cadastro, login, refresh token e recuperação de senha
-- Usuário atual: `/me`
+- Autenticacao: cadastro, login, refresh token e recuperacao de senha
+- Usuario atual: `/me`
 - Contas
 - Categorias
-- Transações
-- Transações recorrentes com materialização automática
+- Transacoes
+- Transacoes recorrentes com materializacao automatica
 - Dashboard consolidado
-- Cartões de crédito
+- Cartoes de credito
+- Contatos
 - Impostos mensais
 
 ## Estrutura principal
@@ -29,11 +30,11 @@ Backend serverless do Fincheck. A aplicação expõe a API HTTP usada pelo Web, 
 - `src/application`: entidades, controllers, queries, services e use cases
 - `src/infra`: banco, gateways, clientes AWS e templates de e-mail
 - `src/main`: adapters e handlers das lambdas
-- `src/shared`: configuração, saga e tipos compartilhados
-- `sls/`: definição das funções e recursos do Serverless
-- `docs/`: documentação do estado atual da API
+- `src/shared`: configuracao, saga e tipos compartilhados
+- `sls/`: definicao das funcoes e recursos do Serverless
+- `docs/`: documentacao do estado atual da API
 
-## Variáveis de ambiente locais
+## Variaveis de ambiente locais
 
 Use o arquivo `.env.example` como base:
 
@@ -41,7 +42,7 @@ Use o arquivo `.env.example` como base:
 - `RECURRENCE_HORIZON_DAYS`
 - `DISABLE_DEFAULT_APIGW_ENDPOINT`
 
-Os identificadores e segredos do Cognito são resolvidos pelo `serverless.yml` em tempo de deploy.
+Os identificadores e segredos do Cognito sao resolvidos pelo `serverless.yml` em tempo de deploy.
 
 ## Scripts
 
@@ -49,7 +50,7 @@ Os identificadores e segredos do Cognito são resolvidos pelo `serverless.yml` e
 - `pnpm lint`
 - `pnpm dev:email`
 
-## Documentação
+## Documentacao
 
 - [Arquitetura](./docs/architecture.md)
 - [Estado atual](./docs/current-state.md)
