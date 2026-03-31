@@ -21,6 +21,12 @@
 
 - `POST /accounts`
 - `GET /entities/{entityId}/accounts`
+- `PATCH /entities/{entityId}/accounts/{accountId}`
+- `DELETE /entities/{entityId}/accounts/{accountId}`
+
+Observacoes:
+
+- A exclusao de contas e protegida: a API bloqueia a remocao quando a conta ainda estiver vinculada a transacoes, recorrencias, compras parceladas ou cartoes.
 
 ## Categorias
 

@@ -17,7 +17,7 @@ Backend serverless do Fincheck. A API atende o Web, autentica usuarios com Cogni
 - Autenticacao: cadastro, login, refresh token e recuperacao de senha
 - Entidades PF/PJ com criacao e edicao
 - Usuario atual: `/me`
-- Contas
+- Contas com criacao, edicao, listagem e exclusao protegida
 - Categorias
 - Transacoes
 - Transacoes recorrentes com materializacao automatica

@@ -15,3 +15,21 @@ listAccounts:
         path: /entities/{entityId}/accounts
         authorizer:
           name: CognitoAuthorizer
+
+updateAccount:
+  handler: src/main/functions/accounts/updateAccount.handler
+  events:
+    - httpApi:
+        method: PATCH
+        path: /entities/{entityId}/accounts/{accountId}
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteAccount:
+  handler: src/main/functions/accounts/deleteAccount.handler
+  events:
+    - httpApi:
+        method: DELETE
+        path: /entities/{entityId}/accounts/{accountId}
+        authorizer:
+          name: CognitoAuthorizer
