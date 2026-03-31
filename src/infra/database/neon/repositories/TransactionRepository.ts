@@ -127,6 +127,8 @@ export class TransactionRepository {
         ? sql`${transactionsTable.value}::numeric`
         : filters.sortBy === "name"
         ? transactionsTable.name
+        : filters.sortBy === "dueDate"
+        ? transactionsTable.dueDate
         : filters.sortBy === "createdAt"
         ? transactionsTable.createdAt
         : transactionsTable.date;

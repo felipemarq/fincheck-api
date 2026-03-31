@@ -47,7 +47,7 @@ export const listTransactionQuerySchema = z.object({
   dueDateEnd: optionalDate,
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
-  sortBy: z.enum(["date", "createdAt", "value", "name"]).optional(),
+  sortBy: z.enum(["date", "dueDate", "createdAt", "value", "name"]).optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
   page: z.string().optional(),
   pageSize: z.string().optional(),

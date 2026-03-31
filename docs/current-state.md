@@ -4,7 +4,7 @@
 
 - Estrutura por camadas consistente.
 - `typecheck` e `lint` habilitados no repositorio.
-- Fluxos principais de auth, contas, transacoes, recorrencias, dashboard e contatos ja existem.
+- Fluxos principais de auth, contas, transacoes, recorrencias, dashboard, contatos e resumo financeiro ja existem.
 - O modelo de dados foi desenhado pensando em expansao do produto.
 
 ## O que o frontend usa hoje
@@ -23,12 +23,11 @@
 - `GET/POST/PATCH/DELETE` de transacoes
 - `GET/POST/PATCH/DELETE` de recorrencias
 - `PUT` de impostos mensais
-- `GET /dashboard`
+- `GET /dashboard`, incluindo a secao `settlements` para contas a pagar/receber
 
 ## O que ja existe mas ainda nao virou produto completo
 
-- Cartoes de credito
-- Impostos mensais
+- Visoes e filtros mais ricos de contas a pagar/receber
 - Parcelamento
 - Idempotencia
 - Auditoria

@@ -20,7 +20,7 @@ Backend serverless do Fincheck. A API atende o Web, autentica usuarios com Cogni
 - Categorias
 - Transacoes
 - Transacoes recorrentes com materializacao automatica
-- Dashboard consolidado
+- Dashboard consolidado, incluindo resumo de contas a pagar e contas a receber
 - Cartoes de credito
 - Contatos
 - Impostos mensais

@@ -35,6 +35,10 @@
 - `PATCH /transactions/{transactionId}`
 - `DELETE /entities/{entityId}/transactions/{transactionId}`
 
+Observacoes:
+
+- `GET /transactions` aceita filtros por `entityId`, `type`, `isPaid`, `accountId`, `categoryId`, faixas de `date` e `dueDate`, alem de ordenacao por `date`, `dueDate`, `createdAt`, `value` e `name`.
+
 ## Recorrencias
 
 - `POST /recurring-transactions`
@@ -45,6 +49,10 @@
 ## Dashboard
 
 - `GET /dashboard`
+
+Observacoes:
+
+- A secao `settlements` do dashboard resume contas a pagar e contas a receber em aberto, vencidas, para hoje e para os proximos dias.
 
 ## Outros modulos expostos
 

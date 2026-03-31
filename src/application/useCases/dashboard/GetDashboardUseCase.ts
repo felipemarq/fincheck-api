@@ -2,6 +2,7 @@ import { Injectable } from "@kernel/decorators/Injectable";
 import { GetBalancesQuery } from "@application/queries/GetBalancesQuery";
 import { GetCashFlowQuery } from "@application/queries/GetCashFlowQuery";
 import { GetMonthlyTaxQuery } from "@application/queries/GetMonthlyTaxQuery";
+import { GetPayablesReceivablesSummaryQuery } from "@application/queries/GetPayablesReceivablesSummaryQuery";
 import { GetTopCategoriesQuery } from "@application/queries/GetTopCategoriesQuery";
 import { GetDueUpcomingQuery } from "@application/queries/GetDueUpcomingQuery";
 
@@ -50,7 +51,8 @@ export class GetDashboardUseCase {
     private readonly getDueUpcomingQuery: GetDueUpcomingQuery,
     private readonly getBalancesQuery: GetBalancesQuery,
     private readonly getCashFlowQuery: GetCashFlowQuery,
-    private readonly getMonthlyTaxQuery: GetMonthlyTaxQuery
+    private readonly getMonthlyTaxQuery: GetMonthlyTaxQuery,
+    private readonly getPayablesReceivablesSummaryQuery: GetPayablesReceivablesSummaryQuery
   ) {}
 
   async execute(input: {
@@ -130,6 +132,12 @@ export class GetDashboardUseCase {
         anyDateInMonth: from,
         entityId: input.entityId,
         userId: input.userId,
+      });
+    if (want("settlements"))
+      tasksNow.settlements = this.getPayablesReceivablesSummaryQuery.execute({
+        entityId: input.entityId,
+        userId: input.userId,
+        referenceDate: now,
       });
 
     // Tarefas "previous period" (só para as seções que fazem sentido comparar)
