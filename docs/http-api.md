@@ -39,6 +39,32 @@ Observacoes:
 - `PATCH /entities/{entityId}/contacts/{contactId}`
 - `DELETE /entities/{entityId}/contacts/{contactId}`
 
+## Clientes V2
+
+- `POST /entities/{entityId}/customers`
+- `GET /entities/{entityId}/customers`
+- `PATCH /entities/{entityId}/customers/{customerId}`
+
+Observacoes:
+
+- O documento e unico por cliente dentro da organizacao.
+- A listagem aceita `search` e `active`.
+- Clientes inativos permanecem no historico, mas nao recebem novas ordens.
+
+## Ordens de compra V2
+
+- `POST /entities/{entityId}/purchase-orders`
+- `GET /entities/{entityId}/purchase-orders`
+- `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}`
+
+Observacoes:
+
+- Criacao e edicao persistem o cabecalho e os itens em uma unica transacao.
+- A listagem aceita `search`, `customerId` e `lifecycleStatus`.
+- O detalhe informa o valor oficial, a soma dos itens e se ha divergencia.
+- O progresso inicial e `PENDING_PURCHASE`; aquisicoes entram na proxima etapa.
+
 ## Transacoes
 
 - `POST /transactions`

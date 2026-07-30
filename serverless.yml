@@ -57,6 +57,8 @@ functions:
   - ${file(./sls/functions/recurringTransactions.yml)}
   - ${file(./sls/functions/creditCards.yml)}
   - ${file(./sls/functions/contacts.yml)}
+  - ${file(./sls/functions/customers.yml)}
+  - ${file(./sls/functions/purchaseOrders.yml)}
   - ${file(./sls/functions/taxes.yml)}
   - ${file(./sls/functions/dashboard.yml)}
   - ${file(./sls/functions/entities.yml)}

@@ -53,11 +53,15 @@ Os identificadores e segredos do Cognito sao resolvidos pelo `serverless.yml` em
 
 - `pnpm typecheck`
 - `pnpm lint`
+- `pnpm test`
+- `pnpm db:generate -- --name nome_da_migracao`
+- `pnpm db:migrate`
 - `pnpm dev:email`
 
 ## Documentacao
 
 - [Regras de negocio v2 - Ordens de compra](./docs/business-rules-v2.md)
+- [Migracoes de banco](./docs/database-migrations.md)
 - [Arquitetura](./docs/architecture.md)
 - [Estado atual](./docs/current-state.md)
 - [API HTTP](./docs/http-api.md)

@@ -1,0 +1,26 @@
+createCustomer:
+  handler: src/main/functions/customers/createCustomer.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/customers
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listCustomers:
+  handler: src/main/functions/customers/listCustomers.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/customers
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateCustomer:
+  handler: src/main/functions/customers/updateCustomer.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/customers/{customerId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

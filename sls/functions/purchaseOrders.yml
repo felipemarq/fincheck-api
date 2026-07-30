@@ -1,0 +1,35 @@
+createPurchaseOrder:
+  handler: src/main/functions/purchaseOrders/createPurchaseOrder.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listPurchaseOrders:
+  handler: src/main/functions/purchaseOrders/listPurchaseOrders.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+getPurchaseOrder:
+  handler: src/main/functions/purchaseOrders/getPurchaseOrder.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updatePurchaseOrder:
+  handler: src/main/functions/purchaseOrders/updatePurchaseOrder.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

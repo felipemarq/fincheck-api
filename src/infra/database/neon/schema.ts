@@ -42,6 +42,16 @@ export type NewCategoryRow = typeof categoriesTable.$inferInsert; // ou InferIns
 export type ContactRow = typeof contactsTable.$inferSelect;
 export type NewContactRow = typeof contactsTable.$inferInsert;
 
+export type CustomerRow = typeof customersTable.$inferSelect;
+export type NewCustomerRow = typeof customersTable.$inferInsert;
+
+export type PurchaseOrderRow = typeof purchaseOrdersTable.$inferSelect;
+export type NewPurchaseOrderRow = typeof purchaseOrdersTable.$inferInsert;
+
+export type PurchaseOrderItemRow = typeof purchaseOrderItemsTable.$inferSelect;
+export type NewPurchaseOrderItemRow =
+  typeof purchaseOrderItemsTable.$inferInsert;
+
 export const accountType = pgEnum("bank_account_type", [
   "CHECKING", // Conta corrente
   "INVESTMENT", // Conta de investimento
@@ -65,6 +75,11 @@ export const entityType = pgEnum("entity_type", [
   "PF", // Pessoa Física
   "PJ", // Pessoa Jurídica
 ]);
+
+export const purchaseOrderLifecycleStatus = pgEnum(
+  "purchase_order_lifecycle_status",
+  ["DRAFT", "ACTIVE", "CANCELLED"]
+);
 
 // Helper: tipo dinheiro como string (NUMERIC) com precisão padrão.
 export const money = (name: string) =>
@@ -116,6 +131,8 @@ export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
   installments: many(installmentsTable),
   creditCards: many(creditCardsTable),
   contacts: many(contactsTable),
+  customers: many(customersTable),
+  purchaseOrders: many(purchaseOrdersTable),
 }));
 
 // ---------------------
@@ -256,6 +273,220 @@ export const contactsRelations = relations(contactsTable, ({ one, many }) => ({
   }),
   transactions: many(transactionsTable),
 }));
+
+// ---------------------
+// Clientes da operacao V2
+// ---------------------
+export const customersTable = pgTable(
+  "customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entitiesTable.id, { onDelete: "cascade" }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    updatedByUserId: uuid("updated_by_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    legalName: varchar("legal_name", { length: 160 }).notNull(),
+    tradeName: varchar("trade_name", { length: 160 }),
+    document: varchar("document", { length: 40 }).notNull(),
+    email: varchar("email", { length: 254 }),
+    phone: varchar("phone", { length: 40 }),
+    billingAddress: text("billing_address"),
+    deliveryAddress: text("delivery_address"),
+    notes: text("notes"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    customerEntityIdx: index("customers_entity_idx").on(table.entityId),
+    customerEntityDocumentUq: uniqueIndex(
+      "customers_entity_document_uq"
+    ).on(table.entityId, table.document),
+  })
+);
+
+export const customersRelations = relations(customersTable, ({ one, many }) => ({
+  entity: one(entitiesTable, {
+    fields: [customersTable.entityId],
+    references: [entitiesTable.id],
+  }),
+  createdBy: one(usersTable, {
+    fields: [customersTable.createdByUserId],
+    references: [usersTable.id],
+    relationName: "customerCreatedBy",
+  }),
+  updatedBy: one(usersTable, {
+    fields: [customersTable.updatedByUserId],
+    references: [usersTable.id],
+    relationName: "customerUpdatedBy",
+  }),
+  purchaseOrders: many(purchaseOrdersTable),
+}));
+
+// ---------------------
+// Ordens de compra da operacao V2
+// ---------------------
+export const purchaseOrdersTable = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entitiesTable.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customersTable.id, { onDelete: "restrict" }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    updatedByUserId: uuid("updated_by_user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    orderNumber: varchar("order_number", { length: 80 }).notNull(),
+    externalNumber: varchar("external_number", { length: 80 }),
+    quoteNumber: varchar("quote_number", { length: 80 }),
+    requisitionNumber: varchar("requisition_number", { length: 80 }),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+    requestedDeliveryAt: timestamp("requested_delivery_at", {
+      withTimezone: true,
+    }),
+    officialTotal: numeric("official_total", {
+      precision: 16,
+      scale: 2,
+    }).notNull(),
+    paymentTerms: text("payment_terms"),
+    instructions: text("instructions"),
+    notes: text("notes"),
+    billingAddress: text("billing_address"),
+    deliveryAddress: text("delivery_address"),
+    lifecycleStatus: purchaseOrderLifecycleStatus("lifecycle_status")
+      .notNull()
+      .default("DRAFT"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    purchaseOrderEntityIdx: index("purchase_orders_entity_idx").on(
+      table.entityId
+    ),
+    purchaseOrderCustomerIdx: index("purchase_orders_customer_idx").on(
+      table.customerId
+    ),
+    purchaseOrderDeliveryIdx: index("purchase_orders_delivery_idx").on(
+      table.entityId,
+      table.requestedDeliveryAt
+    ),
+    purchaseOrderNumberUq: uniqueIndex("purchase_orders_number_uq").on(
+      table.entityId,
+      table.customerId,
+      table.orderNumber
+    ),
+  })
+);
+
+export const purchaseOrdersRelations = relations(
+  purchaseOrdersTable,
+  ({ one, many }) => ({
+    entity: one(entitiesTable, {
+      fields: [purchaseOrdersTable.entityId],
+      references: [entitiesTable.id],
+    }),
+    customer: one(customersTable, {
+      fields: [purchaseOrdersTable.customerId],
+      references: [customersTable.id],
+    }),
+    createdBy: one(usersTable, {
+      fields: [purchaseOrdersTable.createdByUserId],
+      references: [usersTable.id],
+      relationName: "purchaseOrderCreatedBy",
+    }),
+    updatedBy: one(usersTable, {
+      fields: [purchaseOrdersTable.updatedByUserId],
+      references: [usersTable.id],
+      relationName: "purchaseOrderUpdatedBy",
+    }),
+    items: many(purchaseOrderItemsTable),
+  })
+);
+
+export const purchaseOrderItemsTable = pgTable(
+  "purchase_order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => entitiesTable.id, { onDelete: "cascade" }),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrdersTable.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull(),
+    description: text("description").notNull(),
+    brand: varchar("brand", { length: 120 }).notNull(),
+    specification: text("specification"),
+    originalUnit: varchar("original_unit", { length: 40 }).notNull(),
+    normalizedUnit: varchar("normalized_unit", { length: 40 }).notNull(),
+    orderedQuantity: numeric("ordered_quantity", {
+      precision: 14,
+      scale: 3,
+    }).notNull(),
+    saleUnitPrice: numeric("sale_unit_price", {
+      precision: 16,
+      scale: 6,
+    }).notNull(),
+    officialTotal: numeric("official_total", {
+      precision: 16,
+      scale: 2,
+    }).notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    purchaseOrderItemEntityIdx: index(
+      "purchase_order_items_entity_idx"
+    ).on(table.entityId),
+    purchaseOrderItemOrderIdx: index(
+      "purchase_order_items_order_idx"
+    ).on(table.purchaseOrderId),
+    purchaseOrderItemLineUq: uniqueIndex(
+      "purchase_order_items_line_uq"
+    ).on(table.purchaseOrderId, table.lineNumber),
+  })
+);
+
+export const purchaseOrderItemsRelations = relations(
+  purchaseOrderItemsTable,
+  ({ one }) => ({
+    entity: one(entitiesTable, {
+      fields: [purchaseOrderItemsTable.entityId],
+      references: [entitiesTable.id],
+    }),
+    purchaseOrder: one(purchaseOrdersTable, {
+      fields: [purchaseOrderItemsTable.purchaseOrderId],
+      references: [purchaseOrdersTable.id],
+    }),
+  })
+);
 
 // ---------------------
 // Cartões de Crédito
@@ -720,6 +951,18 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
   recurringTransactions: many(recurringTransactionsTable),
   installmentPurchases: many(installmentPurchasesTable),
   contacts: many(contactsTable),
+  customersCreated: many(customersTable, {
+    relationName: "customerCreatedBy",
+  }),
+  customersUpdated: many(customersTable, {
+    relationName: "customerUpdatedBy",
+  }),
+  purchaseOrdersCreated: many(purchaseOrdersTable, {
+    relationName: "purchaseOrderCreatedBy",
+  }),
+  purchaseOrdersUpdated: many(purchaseOrdersTable, {
+    relationName: "purchaseOrderUpdatedBy",
+  }),
   taxRates: many(taxRates),
 }));
 

@@ -47,9 +47,23 @@
 
 ## Direcao planejada
 
-O produto sera simplificado e reposicionado para gestao operacional e
-financeira de ordens de compra. Essa direcao ainda nao esta implementada e nao
-altera a descricao do estado atual acima.
+O produto esta sendo simplificado e reposicionado para gestao operacional e
+financeira de ordens de compra. A reformulacao completa ainda nao esta
+implementada e nao altera a descricao dos modulos legados acima.
 
 As regras, os limites do MVP e a sequencia recomendada estao em
 [Regras de negocio v2 - Ordens de compra](./business-rules-v2.md).
+
+## Primeira fatia V2
+
+Na branch `codex/purchase-orders-v2`, a primeira fatia adiciona:
+
+- baseline de migracoes para um banco novo da V2;
+- clientes isolados por organizacao;
+- ordens de compra e seus itens;
+- criacao, edicao, listagem e detalhe;
+- total oficial separado da soma calculada;
+- testes das primeiras regras de dominio.
+
+Essa fatia ainda nao inclui aquisicoes, recebimentos de mercadoria, entregas ou
+faturamento.
