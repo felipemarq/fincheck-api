@@ -2,6 +2,10 @@
 
 Backend serverless do Fincheck. A API atende o Web, autentica usuarios com Cognito e persiste os dados financeiros no Neon/Postgres via Drizzle.
 
+> A reformulacao do produto para gestao de ordens de compra esta em
+> planejamento. As regras aprovadas estao documentadas, mas ainda nao foram
+> implementadas.
+
 ## Stack
 
 - Node.js 22
@@ -53,6 +57,7 @@ Os identificadores e segredos do Cognito sao resolvidos pelo `serverless.yml` em
 
 ## Documentacao
 
+- [Regras de negocio v2 - Ordens de compra](./docs/business-rules-v2.md)
 - [Arquitetura](./docs/architecture.md)
 - [Estado atual](./docs/current-state.md)
 - [API HTTP](./docs/http-api.md)

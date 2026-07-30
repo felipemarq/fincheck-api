@@ -45,8 +45,11 @@
 - Alinhamento dos contratos usados pelo Web.
 - Gestao de contas expandida com edicao e exclusao protegida contra vinculos financeiros.
 
-## Proximo passo recomendado
+## Direcao planejada
 
-1. Consolidar relatorios e visoes gerenciais por entidade.
-2. Expor os modulos ainda modelados no banco, como investimentos e parcelamento.
-3. Adicionar testes de contrato e cobertura minima de use cases criticos.
+O produto sera simplificado e reposicionado para gestao operacional e
+financeira de ordens de compra. Essa direcao ainda nao esta implementada e nao
+altera a descricao do estado atual acima.
+
+As regras, os limites do MVP e a sequencia recomendada estao em
+[Regras de negocio v2 - Ordens de compra](./business-rules-v2.md).
