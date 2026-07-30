@@ -220,26 +220,19 @@ das quantidades dos itens.
 Cada linha do documento sera preservada como um retrato comercial. Um cadastro
 global de produtos nao sera obrigatorio no MVP.
 
-Dados minimos:
+Dados do MVP:
 
 - ordem de compra;
 - numero ou sequencia da linha;
-- codigo informado pelo cliente, quando houver;
-- codigo ERP, quando houver;
-- codigo Anvisa, quando houver;
 - descricao livre;
 - marca;
-- especificacao;
-- embalagem ou apresentacao;
+- especificacao, opcional;
 - unidade original exibida no documento;
 - unidade normalizada para calculos;
 - quantidade solicitada;
 - preco unitario de venda;
-- desconto da linha, quando houver;
-- imposto da linha, quando houver;
 - valor total oficial da linha;
-- prazo de entrega especifico, quando houver;
-- observacoes.
+- observacoes, opcionais.
 
 Precisao recomendada:
 
@@ -668,7 +661,7 @@ O MVP sera funcional quando:
 | Os layouts e nomes de campos variam entre clientes | O cadastro sera flexivel e nao dependera de um template de PDF |
 | Existem numero da ordem, cotacao, requisicao e outros IDs | A ordem aceita varios identificadores externos opcionais |
 | Faturamento e entrega podem usar enderecos distintos | A ordem preserva snapshots separados desses dados |
-| Descricoes, marcas e apresentacoes aparecem em formatos livres | O item e um snapshot textual, sem catalogo global obrigatorio |
+| Descricoes, marcas e especificacoes aparecem em formatos livres | O item e um snapshot textual, sem catalogo global obrigatorio |
 | Quantidades e unidades variam | Quantidade decimal e unidade original sao preservadas |
 | Precos unitarios usam mais casas decimais que o total | Preco unitario usa ate seis casas; total usa duas |
 | O total oficial pode incluir ajustes nao evidentes nas linhas | Total oficial e soma calculada ficam separados |
