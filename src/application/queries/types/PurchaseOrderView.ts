@@ -9,6 +9,7 @@ export type PurchaseOrderCustomerView = Pick<
 
 export type PurchaseOrderItemView = {
   id?: string;
+  productId: string;
   lineNumber: number;
   description: string;
   brand: string;
@@ -20,10 +21,17 @@ export type PurchaseOrderItemView = {
   officialTotal: number;
   notes?: string;
   acquiredQuantity: number;
+  purchasePendingQuantity: number;
   receivedQuantity: number;
+  receiptPendingQuantity: number;
+  committedDeliveryQuantity: number;
+  availableForDeliveryQuantity: number;
   deliveredQuantity: number;
+  deliveryPendingQuantity: number;
+  invoicedQuantity: number;
+  invoicePendingQuantity: number;
   excessQuantity: number;
-  progress: PurchaseOrder.Progress;
+  progress: PurchaseOrder.ItemProgress;
 };
 
 export type PurchaseOrderView = {
@@ -48,6 +56,18 @@ export type PurchaseOrderView = {
   lifecycleStatus: PurchaseOrder.LifecycleStatus;
   progress: PurchaseOrder.Progress;
   itemCount: number;
+  acquisitionCount: number;
+  knownAcquisitionCost: number;
+  deliveryCount: number;
+  deliveryCost: number;
+  invoiceCount: number;
+  invoicedRevenue: number;
+  taxCost: number;
+  otherDeductions: number;
+  receivedRevenue: number;
+  receivableBalance: number;
+  projectedMargin: number;
+  invoicedMargin: number;
   items: PurchaseOrderItemView[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -89,6 +109,7 @@ export function toPurchaseOrderView({
     itemCount: order.items.length,
     items: order.items.map((item) => ({
       id: item.id,
+      productId: item.productId,
       lineNumber: item.lineNumber,
       description: item.description,
       brand: item.brand,
@@ -99,12 +120,31 @@ export function toPurchaseOrderView({
       saleUnitPrice: item.saleUnitPrice,
       officialTotal: item.officialTotal,
       notes: item.notes,
-      acquiredQuantity: 0,
-      receivedQuantity: 0,
-      deliveredQuantity: 0,
-      excessQuantity: 0,
-      progress: order.progress,
+      acquiredQuantity: item.acquiredQuantity,
+      purchasePendingQuantity: item.purchasePendingQuantity,
+      receivedQuantity: item.receivedQuantity,
+      receiptPendingQuantity: item.receiptPendingQuantity,
+      committedDeliveryQuantity: item.committedDeliveryQuantity,
+      availableForDeliveryQuantity: item.availableForDeliveryQuantity,
+      deliveredQuantity: item.deliveredQuantity,
+      deliveryPendingQuantity: item.deliveryPendingQuantity,
+      invoicedQuantity: item.invoicedQuantity,
+      invoicePendingQuantity: item.invoicePendingQuantity,
+      excessQuantity: item.excessQuantity,
+      progress: item.progress,
     })),
+    acquisitionCount: order.acquisitionCount,
+    knownAcquisitionCost: order.knownAcquisitionCost,
+    deliveryCount: order.deliveryCount,
+    deliveryCost: order.deliveryCost,
+    invoiceCount: order.invoiceCount,
+    invoicedRevenue: order.invoicedRevenue,
+    taxCost: order.taxCost,
+    otherDeductions: order.otherDeductions,
+    receivedRevenue: order.receivedRevenue,
+    receivableBalance: order.receivableBalance,
+    projectedMargin: order.projectedMargin,
+    invoicedMargin: order.invoicedMargin,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
   };

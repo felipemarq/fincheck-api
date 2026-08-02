@@ -1,0 +1,8 @@
+getOperationsDashboard:
+  handler: src/main/functions/dashboard/getOperationsDashboard.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/operations-dashboard
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer

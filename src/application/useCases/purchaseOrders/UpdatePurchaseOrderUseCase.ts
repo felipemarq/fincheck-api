@@ -11,6 +11,7 @@ import {
 } from "@application/queries/types/PurchaseOrderView";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
 import { CustomerRepository } from "@infra/database/neon/repositories/CustomerRepository";
+import { ProductRepository } from "@infra/database/neon/repositories/ProductRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -19,6 +20,7 @@ export class UpdatePurchaseOrderUseCase {
   constructor(
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
     private readonly customerRepository: CustomerRepository,
+    private readonly productRepository: ProductRepository,
     private readonly organizationAccessService: OrganizationAccessService
   ) {}
 
@@ -70,15 +72,65 @@ export class UpdatePurchaseOrderUseCase {
       );
     }
 
+    if (input.items && current.acquisitionCount > 0) {
+      throw new BadRequestException(
+        "Os itens da ordem nao podem ser alterados depois do registro de uma aquisicao."
+      );
+    }
+
     const customerChanged = customerId !== current.customerId;
+    const products = input.items
+      ? await Promise.all(
+          [...new Set(input.items.map((item) => item.productId))].map(
+            (productId) =>
+              this.productRepository.findOne({
+                entityId: input.entityId,
+                productId,
+              })
+          )
+        )
+      : [];
+    const productsById = new Map(
+      products.filter((product) => product !== null).map((product) => [product.id!, product])
+    );
+
+    if (input.items) {
+      for (const item of input.items) {
+        const product = productsById.get(item.productId);
+        const wasAlreadySelected = current.items.some(
+          (currentItem) => currentItem.productId === item.productId
+        );
+
+        if (!product) {
+          throw new NotFoundException("Produto nao encontrado.");
+        }
+
+        if (!product.active && !wasAlreadySelected) {
+          throw new BadRequestException(
+            `O produto "${product.name}" esta inativo e nao pode ser vendido.`
+          );
+        }
+      }
+    }
+
     const items = input.items
       ? input.items.map(
-          (item) =>
+          (item) => {
+            const product = productsById.get(item.productId)!;
+
+            return (
             new PurchaseOrderItem({
               ...item,
               entityId: input.entityId,
               purchaseOrderId: current.id,
+              description: product.name,
+              brand: product.brand,
+              specification: product.specification,
+              originalUnit: product.packaging,
+              normalizedUnit: product.normalizedUnit,
             })
+            );
+          }
         )
       : current.items;
 
@@ -140,6 +192,17 @@ export class UpdatePurchaseOrderUseCase {
     const updated = await this.purchaseOrderRepository.update(updatedOrder, {
       replaceItems: input.items !== undefined,
     });
+    if (updated.order.lifecycleStatus === PurchaseOrder.LifecycleStatus.ACTIVE) {
+      await this.productRepository.recordSalePrices({
+        entityId: input.entityId,
+        userId: input.userId,
+        soldAt: updated.order.issuedAt,
+        items: updated.order.items.map((item) => ({
+          productId: item.productId,
+          unitPrice: item.saleUnitPrice,
+        })),
+      });
+    }
     return toPurchaseOrderView(updated);
   }
 }
@@ -147,6 +210,7 @@ export class UpdatePurchaseOrderUseCase {
 export namespace UpdatePurchaseOrderUseCase {
   export type ItemInput = {
     id?: string;
+    productId: string;
     lineNumber: number;
     description: string;
     brand: string;

@@ -1,8 +1,0 @@
-upsertTaxRate:
-  handler: src/main/functions/taxes/upsertTaxRate.handler
-  events:
-    - httpApi:
-        path: /entities/{entityId}/tax-rates/{year}/{month}
-        method: PUT
-        authorizer:
-          name: CognitoAuthorizer

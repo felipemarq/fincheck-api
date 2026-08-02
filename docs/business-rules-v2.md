@@ -73,6 +73,8 @@ termos:
 O MVP deve permitir:
 
 - cadastrar e editar clientes;
+- cadastrar, editar, inativar e consultar produtos;
+- manter referencias do ultimo preco de compra, canal e ultimo preco de venda;
 - cadastrar manualmente uma ordem de compra;
 - cadastrar os itens e os valores comerciais da ordem;
 - acompanhar o progresso de compra, chegada e entrega por item;
@@ -116,6 +118,9 @@ Estas premissas reduzem a complexidade inicial sem impedir evolucoes futuras:
   agrupamento de filiais em uma rede podera ser adicionado depois.
 - Todos os usuarios autenticados da organizacao poderao operar o modulo. O
   sistema registrara quem criou ou alterou cada informacao.
+- Cada item novo de uma ordem deve selecionar um produto ativo do catalogo.
+- O item preserva um snapshot dos dados do produto para que alteracoes futuras
+  no catalogo nao modifiquem documentos antigos.
 - Uma aquisicao pertence a exatamente uma ordem de compra.
 - Uma aquisicao pode conter varios itens, desde que todos sejam da mesma ordem.
 - Se uma compra real atender mais de uma ordem, ela devera ser dividida em
@@ -131,8 +136,10 @@ Estas premissas reduzem a complexidade inicial sem impedir evolucoes futuras:
 ```mermaid
 flowchart LR
     O["Organizacao operadora"] --> C["Clientes"]
+    O --> P["Produtos"]
     C --> OC["Ordens de compra"]
     OC --> I["Itens da ordem"]
+    P --> I
     OC --> A["Aquisicoes"]
     A --> AI["Itens adquiridos"]
     AI --> I
@@ -215,14 +222,36 @@ Situacoes persistidas de ciclo de vida:
 O progresso operacional nao deve ser digitado manualmente. Ele sera derivado
 das quantidades dos itens.
 
-### 8.4 Item da ordem
+### 8.4 Produto
 
-Cada linha do documento sera preservada como um retrato comercial. Um cadastro
-global de produtos nao sera obrigatorio no MVP.
+Representa um item reutilizavel do catalogo da organizacao.
+
+Dados do MVP:
+
+- nome;
+- marca, com `Outros` quando nao houver;
+- especificacao, opcional;
+- embalagem ou apresentacao, como unidade, caixa, kit ou pacote;
+- unidade normalizada para calculos;
+- ultimo preco de compra, opcional;
+- marketplace ou fornecedor da ultima compra, opcional;
+- ultimo preco de venda, opcional;
+- situacao ativa ou inativa.
+
+Uma ordem ativa atualiza a referencia de venda. Uma aquisicao nao cancelada
+atualiza a referencia de compra e seu canal, desde que seja o evento mais
+recente conhecido. Produtos usados no historico devem ser inativados, nao
+excluidos.
+
+### 8.5 Item da ordem
+
+Cada linha do documento referencia um produto e preserva um retrato comercial
+dos dados usados no momento da venda.
 
 Dados do MVP:
 
 - ordem de compra;
+- produto do catalogo;
 - numero ou sequencia da linha;
 - descricao livre;
 - marca;
@@ -243,7 +272,7 @@ Precisao recomendada:
 O valor oficial informado pelo cliente sera preservado, mesmo quando houver uma
 pequena diferenca em relacao ao valor recalculado pelo sistema.
 
-### 8.5 Aquisicao
+### 8.6 Aquisicao
 
 Representa uma compra feita para atender uma ordem.
 
@@ -278,7 +307,7 @@ Situacoes:
 
 As situacoes parcial e recebida devem ser derivadas dos recebimentos registrados.
 
-### 8.6 Item adquirido
+### 8.7 Item adquirido
 
 Vincula uma linha da aquisicao a um item da ordem.
 
@@ -295,7 +324,7 @@ Dados minimos:
 Um item da ordem pode ser atendido por varias aquisicoes. Uma aquisicao pode
 atender varios itens da mesma ordem.
 
-### 8.7 Recebimento de mercadoria
+### 8.8 Recebimento de mercadoria
 
 Registra uma chegada fisica, inclusive parcial.
 
@@ -321,19 +350,21 @@ Situacoes:
 
 Somente recebimentos concluidos afetam as quantidades recebidas.
 
-### 8.8 Entrega ao cliente
+### 8.9 Entrega ao cliente
 
 Registra o que foi efetivamente entregue ao cliente.
 
 Cabecalho:
 
 - ordem de compra;
-- data da entrega;
-- responsavel;
-- endereco de entrega copiado;
-- comprovante ou referencia textual;
 - situacao;
+- data da saida, quando houver;
+- data da entrega, quando houver;
+- custo de frete opcional, com zero para entrega propria;
 - observacoes.
+
+Destinatario e rastreio nao fazem parte do MVP, pois a operacao normalmente
+realiza a entrega diretamente ao cliente.
 
 Linhas:
 
@@ -342,13 +373,14 @@ Linhas:
 
 Situacoes:
 
-- `DRAFT`: entrega em preparacao;
-- `COMPLETED`: entrega confirmada;
+- `PREPARING`: entrega em preparacao;
+- `DISPATCHED`: entrega em deslocamento;
+- `DELIVERED`: entrega confirmada;
 - `CANCELLED`: entrega cancelada.
 
 Somente entregas concluidas afetam as quantidades entregues.
 
-### 8.9 Nota fiscal de venda
+### 8.10 Nota fiscal de venda
 
 Registra o faturamento e o recebimento financeiro.
 
@@ -375,7 +407,7 @@ e com vencimento anterior a data atual.
 
 Emitir uma nota fiscal nao significa que o dinheiro foi recebido.
 
-### 8.10 Despesa da ordem
+### 8.11 Despesa da ordem
 
 Registra custos operacionais que nao fazem parte diretamente dos itens
 adquiridos.
@@ -395,7 +427,7 @@ Dados minimos:
 - data de competencia;
 - responsavel pelo registro.
 
-### 8.11 Historico
+### 8.12 Historico
 
 O historico deve registrar ao menos:
 
@@ -557,7 +589,7 @@ do MVP.
 
 1. Selecionar ou criar o cliente.
 2. Informar os identificadores e dados comerciais da ordem.
-3. Adicionar os itens.
+3. Selecionar um produto em cada item ou cadastra-lo sem sair da ordem.
 4. Conferir o valor oficial e a soma calculada.
 5. Salvar como rascunho ou ativar.
 
@@ -582,7 +614,7 @@ do MVP.
 1. Abrir a ordem.
 2. Criar uma entrega com base nos itens disponiveis.
 3. Informar as quantidades.
-4. Conferir o destino.
+4. Informar o frete somente quando houver transportadora ou outro custo.
 5. Concluir a entrega.
 6. Opcionalmente, registrar a nota fiscal relacionada.
 
@@ -642,6 +674,8 @@ O dashboard deve priorizar:
 O MVP sera funcional quando:
 
 - uma ordem com varios itens puder ser cadastrada manualmente;
+- produtos puderem ser geridos e reutilizados nas ordens;
+- ordens e aquisicoes mantiverem as referencias de ultimo preco atualizadas;
 - o mesmo item puder ser atendido por varias aquisicoes;
 - uma aquisicao puder atender varios itens da mesma ordem;
 - uma compra acima da quantidade pedida mostrar o excedente sem gerar estoque;
@@ -661,7 +695,7 @@ O MVP sera funcional quando:
 | Os layouts e nomes de campos variam entre clientes | O cadastro sera flexivel e nao dependera de um template de PDF |
 | Existem numero da ordem, cotacao, requisicao e outros IDs | A ordem aceita varios identificadores externos opcionais |
 | Faturamento e entrega podem usar enderecos distintos | A ordem preserva snapshots separados desses dados |
-| Descricoes, marcas e especificacoes aparecem em formatos livres | O item e um snapshot textual, sem catalogo global obrigatorio |
+| Descricoes, marcas e especificacoes aparecem em formatos livres | O catalogo evita retrabalho e o item preserva um snapshot textual |
 | Quantidades e unidades variam | Quantidade decimal e unidade original sao preservadas |
 | Precos unitarios usam mais casas decimais que o total | Preco unitario usa ate seis casas; total usa duas |
 | O total oficial pode incluir ajustes nao evidentes nas linhas | Total oficial e soma calculada ficam separados |
@@ -682,22 +716,19 @@ O MVP sera funcional quando:
 - estrutura React, cliente HTTP, cache de consultas e componentes responsivos;
 - isolamento atual por `Entity`, adaptado para organizacao operadora.
 
-### Adaptar
+### Corte atual
 
-- `Entity` passa a representar a organizacao que opera as ordens;
-- contatos podem inspirar clientes e vendedores, mas o novo dominio deve ter
-  nomes e contratos explicitos;
-- contas e cartoes podem inspirar fontes de pagamento, sem carregar toda a
-  semantica de financas pessoais;
-- dashboard e transacoes deixam de ser o centro e passam a refletir os eventos
-  operacionais das ordens.
+- `Entity` representa a organizacao que opera as ordens;
+- clientes e produtos possuem contratos proprios do novo dominio;
+- fontes de pagamento sao snapshots simples da aquisicao e nao contas
+  financeiras completas;
+- o dashboard e derivado dos eventos operacionais das ordens.
 
-### Manter temporariamente
-
-Os modulos atuais de transacoes, recorrencias, categorias, impostos mensais,
-contas a pagar e contas a receber nao devem ser removidos antes de existir um
-fluxo vertical novo funcionando. A retirada sera planejada depois da validacao
-do MVP e da estrategia de migracao dos dados.
+As rotas e implementacoes de contas, transacoes, recorrencias, categorias,
+cartoes, contatos, impostos mensais e dashboard financeiro foram retiradas do
+runtime do MVP. Depois da confirmacao de que os registros antigos haviam sido
+apagados, a migracao `0004_remove-legacy-finance.sql` retirou tambem as tabelas
+e os enums desse dominio.
 
 ## 17. Pre-requisitos tecnicos
 
@@ -723,3 +754,18 @@ Antes de expor o novo modulo em producao:
 
 Cada etapa deve entregar um fluxo utilizavel e testado na API e no Web antes de
 avancar para a seguinte.
+
+## 19. Status de implementacao
+
+As etapas 1 a 6 estao implementadas na branch `codex/purchase-orders-v2`:
+
+- fundacao de clientes, produtos, ordens e itens;
+- catalogo com referencias de compra e venda e cadastro rapido na ordem;
+- aquisicoes e custos conhecidos;
+- chegadas parciais e status derivado;
+- entregas parciais e disponibilidade;
+- notas fiscais, pagamentos e margens;
+- dashboard operacional responsivo.
+
+Continuam no pos-MVP os anexos de documentos, OCR/importacao de PDF, estoque
+reutilizavel entre ordens, conciliacao bancaria e relatorios avancados.

@@ -1,10 +1,7 @@
-import { ListTransactionQuery } from "@application/controllers/transactions/schemas/listTransactionQuerySchema";
 import { Entity } from "@application/entities/Entity";
-import { Transaction } from "@application/entities/Transaction";
 import { User } from "@application/entities/User";
 import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
 import { DatabaseService } from "@infra/database/neon";
-import { UserRepository } from "@infra/database/neon/repositories/UserRepository";
 import { entitiesTable, usersTable } from "@infra/database/neon/schema";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { asc, eq } from "drizzle-orm";

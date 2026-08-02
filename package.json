@@ -32,10 +32,6 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.823.0",
-    "@aws-sdk/client-dynamodb": "^3.823.0",
-    "@aws-sdk/client-s3": "^3.832.0",
-    "@aws-sdk/client-sqs": "^3.840.0",
-    "@aws-sdk/s3-presigned-post": "^3.832.0",
     "@neondatabase/serverless": "^1.0.1",
     "@react-email/column": "^0.0.13",
     "@react-email/heading": "^0.0.15",
@@ -48,7 +44,6 @@
     "@react-email/text": "^0.1.5",
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.4",
-    "ksuid": "^3.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "reflect-metadata": "^0.2.2",

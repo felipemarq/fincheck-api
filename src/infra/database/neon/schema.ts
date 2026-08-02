@@ -1,998 +1,593 @@
-import { InferInsertModel, InferSelectModel, relations } from "drizzle-orm";
-import {
-  numeric,
-  pgTable,
-  uuid,
-  varchar,
-  pgEnum,
-  timestamp,
-  index,
-  uniqueIndex,
-  boolean,
-  integer,
-  primaryKey,
-  text,
-} from "drizzle-orm/pg-core";
+import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 
-// ---------------------
-// Enums (tipos do domínio)
-// ---------------------
 
-// schema.ts
-export type AccountRow = typeof accountsTable.$inferSelect; // row lida do DB
-export type NewAccountRow = typeof accountsTable.$inferInsert; // shape p/ insert
 
-export type TransactionRow = typeof transactionsTable.$inferSelect; // row lida do DB
-export type NewTransactionRow = typeof transactionsTable.$inferInsert; // shape p/ insert
+export const acquisitionReceiptStatus = pgEnum("acquisition_receipt_status", ['CONFIRMED', 'CANCELLED'])
 
-export type RecurringTransactionRow =
-  typeof recurringTransactionsTable.$inferSelect; // row lida do DB
-export type NewRecurringTransactionRow =
-  typeof recurringTransactionsTable.$inferInsert; // shape p/ insert
+export const acquisitionStatus = pgEnum("acquisition_status", ['PLACED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'])
 
-export type CreditCardRow = InferSelectModel<typeof creditCardsTable>;
-export type NewCreditCardRow = InferInsertModel<typeof creditCardsTable>;
+export const deliveryStatus = pgEnum("delivery_status", ['PREPARING', 'DISPATCHED', 'DELIVERED', 'CANCELLED'])
 
-export type TaxRateRow = typeof taxRates.$inferSelect;
-export type NewTaxRateRow = typeof taxRates.$inferInsert;
+export const entityType = pgEnum("entity_type", ['PF', 'PJ'])
 
-export type CategoryRow = typeof categoriesTable.$inferSelect; // ou InferSelectModel<typeof categoriesTable>
-export type NewCategoryRow = typeof categoriesTable.$inferInsert; // ou InferInsertModel<typeof categoriesTable>
+export const invoiceStatus = pgEnum("invoice_status", ['DRAFT', 'ISSUED', 'CANCELLED'])
 
-export type ContactRow = typeof contactsTable.$inferSelect;
-export type NewContactRow = typeof contactsTable.$inferInsert;
+export const purchaseOrderLifecycleStatus = pgEnum("purchase_order_lifecycle_status", ['DRAFT', 'ACTIVE', 'CANCELLED'])
+
+export const receivablePaymentStatus = pgEnum("receivable_payment_status", ['CONFIRMED', 'CANCELLED'])
+
+
+
+export const entitiesTable = pgTable("entities", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerUserId: uuid("owner_user_id").notNull(),
+	name: varchar({ length: 120 }).notNull(),
+	type: entityType().default('PF').notNull(),
+	color: varchar({ length: 7 }).default('#228be6').notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("entities_owner_idx").using("btree", table.ownerUserId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.ownerUserId],
+			foreignColumns: [usersTable.id],
+			name: "entities_owner_user_id_users_id_fk"
+		}).onDelete("cascade"),
+]);
+
+export const usersTable = pgTable("users", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	email: varchar({ length: 255 }).notNull(),
+	externalId: varchar({ length: 255 }),
+}, (table) => [
+	unique("users_email_unique").on(table.email),
+]);
+
+export const receivablePaymentsTable = pgTable("receivable_payments", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	invoiceId: uuid("invoice_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+	amount: numeric({ precision: 16, scale:  2 }).notNull(),
+	paymentMethod: varchar("payment_method", { length: 80 }).notNull(),
+	reference: varchar({ length: 160 }),
+	status: receivablePaymentStatus().default('CONFIRMED').notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("receivable_payments_entity_date_idx").using("btree", table.entityId.asc().nullsLast().op("timestamptz_ops"), table.receivedAt.asc().nullsLast().op("uuid_ops")),
+	index("receivable_payments_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("receivable_payments_invoice_idx").using("btree", table.invoiceId.asc().nullsLast().op("uuid_ops")),
+	index("receivable_payments_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "receivable_payments_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "receivable_payments_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoicesTable.id],
+			name: "receivable_payments_invoice_id_invoices_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "receivable_payments_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "receivable_payments_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const acquisitionsTable = pgTable("acquisitions", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	sellerName: varchar("seller_name", { length: 160 }),
+	sellerDocument: varchar("seller_document", { length: 40 }),
+	channel: varchar({ length: 120 }),
+	sellerOrderNumber: varchar("seller_order_number", { length: 120 }),
+	purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull(),
+	buyerName: varchar("buyer_name", { length: 160 }).notNull(),
+	paymentMethod: varchar("payment_method", { length: 80 }).notNull(),
+	paymentInstrument: varchar("payment_instrument", { length: 120 }),
+	paymentHolder: varchar("payment_holder", { length: 160 }),
+	shippingCost: numeric("shipping_cost", { precision: 16, scale:  2 }).default('0').notNull(),
+	generalDiscount: numeric("general_discount", { precision: 16, scale:  2 }).default('0').notNull(),
+	otherExpenses: numeric("other_expenses", { precision: 16, scale:  2 }).default('0').notNull(),
+	status: acquisitionStatus().default('PLACED').notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("acquisitions_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("acquisitions_entity_purchased_at_idx").using("btree", table.entityId.asc().nullsLast().op("timestamptz_ops"), table.purchasedAt.asc().nullsLast().op("uuid_ops")),
+	index("acquisitions_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "acquisitions_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "acquisitions_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "acquisitions_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "acquisitions_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const acquisitionReceiptsTable = pgTable("acquisition_receipts", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	acquisitionId: uuid("acquisition_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+	status: acquisitionReceiptStatus().default('CONFIRMED').notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("acquisition_receipts_acquisition_idx").using("btree", table.acquisitionId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_receipts_entity_date_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.receivedAt.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_receipts_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_receipts_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "acquisition_receipts_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "acquisition_receipts_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.acquisitionId],
+			foreignColumns: [acquisitionsTable.id],
+			name: "acquisition_receipts_acquisition_id_acquisitions_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "acquisition_receipts_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "acquisition_receipts_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const customersTable = pgTable("customers", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	legalName: varchar("legal_name", { length: 160 }).notNull(),
+	tradeName: varchar("trade_name", { length: 160 }),
+	document: varchar({ length: 40 }).notNull(),
+	email: varchar({ length: 254 }),
+	phone: varchar({ length: 40 }),
+	billingAddress: text("billing_address"),
+	deliveryAddress: text("delivery_address"),
+	notes: text(),
+	active: boolean().default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("customers_entity_document_uq").using("btree", table.entityId.asc().nullsLast().op("text_ops"), table.document.asc().nullsLast().op("text_ops")),
+	index("customers_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "customers_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "customers_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "customers_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const acquisitionReceiptItemsTable = pgTable("acquisition_receipt_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	receiptId: uuid("receipt_id").notNull(),
+	acquisitionItemId: uuid("acquisition_item_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	receivedQuantity: numeric("received_quantity", { precision: 14, scale:  3 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("acquisition_receipt_items_acquisition_item_idx").using("btree", table.acquisitionItemId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_receipt_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("acquisition_receipt_items_item_uq").using("btree", table.receiptId.asc().nullsLast().op("uuid_ops"), table.acquisitionItemId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_receipt_items_receipt_idx").using("btree", table.receiptId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "acquisition_receipt_items_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.receiptId],
+			foreignColumns: [acquisitionReceiptsTable.id],
+			name: "acquisition_receipt_items_receipt_id_acquisition_receipts_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.acquisitionItemId],
+			foreignColumns: [acquisitionItemsTable.id],
+			name: "acquisition_receipt_items_acquisition_item_id_acquisition_items"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.purchaseOrderItemId],
+			foreignColumns: [purchaseOrderItemsTable.id],
+			name: "acquisition_receipt_items_purchase_order_item_id_purchase_order"
+		}).onDelete("restrict"),
+]);
+
+export const deliveriesTable = pgTable("deliveries", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	status: deliveryStatus().default('PREPARING').notNull(),
+	dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+	deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+	recipientName: varchar("recipient_name", { length: 160 }),
+	trackingCode: varchar("tracking_code", { length: 160 }),
+	freightCost: numeric("freight_cost", { precision: 16, scale:  2 }).default('0').notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("deliveries_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("deliveries_entity_status_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.status.asc().nullsLast().op("enum_ops")),
+	index("deliveries_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "deliveries_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "deliveries_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "deliveries_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "deliveries_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const deliveryItemsTable = pgTable("delivery_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	deliveryId: uuid("delivery_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	deliveredQuantity: numeric("delivered_quantity", { precision: 14, scale:  3 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("delivery_items_delivery_idx").using("btree", table.deliveryId.asc().nullsLast().op("uuid_ops")),
+	index("delivery_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("delivery_items_item_uq").using("btree", table.deliveryId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	index("delivery_items_order_item_idx").using("btree", table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "delivery_items_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.deliveryId],
+			foreignColumns: [deliveriesTable.id],
+			name: "delivery_items_delivery_id_deliveries_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderItemId],
+			foreignColumns: [purchaseOrderItemsTable.id],
+			name: "delivery_items_purchase_order_item_id_purchase_order_items_id_f"
+		}).onDelete("restrict"),
+]);
+
+export const acquisitionItemsTable = pgTable("acquisition_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	acquisitionId: uuid("acquisition_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	acquiredQuantity: numeric("acquired_quantity", { precision: 14, scale:  3 }).notNull(),
+	costUnitPrice: numeric("cost_unit_price", { precision: 16, scale:  6 }).notNull(),
+	lineDiscount: numeric("line_discount", { precision: 16, scale:  2 }).default('0').notNull(),
+	totalCost: numeric("total_cost", { precision: 16, scale:  2 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("acquisition_items_acquisition_idx").using("btree", table.acquisitionId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_items_order_item_idx").using("btree", table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("acquisition_items_order_item_uq").using("btree", table.acquisitionId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "acquisition_items_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.acquisitionId],
+			foreignColumns: [acquisitionsTable.id],
+			name: "acquisition_items_acquisition_id_acquisitions_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderItemId],
+			foreignColumns: [purchaseOrderItemsTable.id],
+			name: "acquisition_items_purchase_order_item_id_purchase_order_items_i"
+		}).onDelete("restrict"),
+]);
+
+export const purchaseOrdersTable = pgTable("purchase_orders", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	customerId: uuid("customer_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	orderNumber: varchar("order_number", { length: 80 }).notNull(),
+	externalNumber: varchar("external_number", { length: 80 }),
+	quoteNumber: varchar("quote_number", { length: 80 }),
+	requisitionNumber: varchar("requisition_number", { length: 80 }),
+	issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+	requestedDeliveryAt: timestamp("requested_delivery_at", { withTimezone: true }),
+	officialTotal: numeric("official_total", { precision: 16, scale:  2 }).notNull(),
+	paymentTerms: text("payment_terms"),
+	instructions: text(),
+	notes: text(),
+	billingAddress: text("billing_address"),
+	deliveryAddress: text("delivery_address"),
+	lifecycleStatus: purchaseOrderLifecycleStatus("lifecycle_status").default('DRAFT').notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("purchase_orders_customer_idx").using("btree", table.customerId.asc().nullsLast().op("uuid_ops")),
+	index("purchase_orders_delivery_idx").using("btree", table.entityId.asc().nullsLast().op("timestamptz_ops"), table.requestedDeliveryAt.asc().nullsLast().op("uuid_ops")),
+	index("purchase_orders_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("purchase_orders_number_uq").using("btree", table.entityId.asc().nullsLast().op("text_ops"), table.customerId.asc().nullsLast().op("text_ops"), table.orderNumber.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "purchase_orders_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.customerId],
+			foreignColumns: [customersTable.id],
+			name: "purchase_orders_customer_id_customers_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "purchase_orders_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "purchase_orders_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const invoicesTable = pgTable("invoices", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	invoiceNumber: varchar("invoice_number", { length: 120 }).notNull(),
+	issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+	dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+	grossAmount: numeric("gross_amount", { precision: 16, scale:  2 }).notNull(),
+	taxAmount: numeric("tax_amount", { precision: 16, scale:  2 }).default('0').notNull(),
+	otherDeductions: numeric("other_deductions", { precision: 16, scale:  2 }).default('0').notNull(),
+	status: invoiceStatus().default('DRAFT').notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("invoices_entity_due_idx").using("btree", table.entityId.asc().nullsLast().op("timestamptz_ops"), table.dueAt.asc().nullsLast().op("uuid_ops")),
+	index("invoices_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("invoices_number_uq").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.invoiceNumber.asc().nullsLast().op("uuid_ops")),
+	index("invoices_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "invoices_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "invoices_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "invoices_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "invoices_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const purchaseOrderItemsTable = pgTable("purchase_order_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	lineNumber: integer("line_number").notNull(),
+	description: text().notNull(),
+	brand: varchar({ length: 120 }).notNull(),
+	specification: text(),
+	originalUnit: varchar("original_unit", { length: 40 }).notNull(),
+	normalizedUnit: varchar("normalized_unit", { length: 40 }).notNull(),
+	orderedQuantity: numeric("ordered_quantity", { precision: 14, scale:  3 }).notNull(),
+	saleUnitPrice: numeric("sale_unit_price", { precision: 16, scale:  6 }).notNull(),
+	officialTotal: numeric("official_total", { precision: 16, scale:  2 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	productId: uuid("product_id").notNull(),
+}, (table) => [
+	index("purchase_order_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("purchase_order_items_line_uq").using("btree", table.purchaseOrderId.asc().nullsLast().op("int4_ops"), table.lineNumber.asc().nullsLast().op("uuid_ops")),
+	index("purchase_order_items_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	index("purchase_order_items_product_idx").using("btree", table.productId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "purchase_order_items_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderId],
+			foreignColumns: [purchaseOrdersTable.id],
+			name: "purchase_order_items_purchase_order_id_purchase_orders_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.productId],
+			foreignColumns: [productsTable.id],
+			name: "purchase_order_items_product_id_products_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const invoiceItemsTable = pgTable("invoice_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	invoiceId: uuid("invoice_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	invoicedQuantity: numeric("invoiced_quantity", { precision: 14, scale:  3 }).notNull(),
+	unitPrice: numeric("unit_price", { precision: 16, scale:  6 }).notNull(),
+	totalAmount: numeric("total_amount", { precision: 16, scale:  2 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("invoice_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("invoice_items_invoice_idx").using("btree", table.invoiceId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("invoice_items_item_uq").using("btree", table.invoiceId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	index("invoice_items_order_item_idx").using("btree", table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "invoice_items_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoicesTable.id],
+			name: "invoice_items_invoice_id_invoices_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.purchaseOrderItemId],
+			foreignColumns: [purchaseOrderItemsTable.id],
+			name: "invoice_items_purchase_order_item_id_purchase_order_items_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const productsTable = pgTable("products", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	name: varchar({ length: 240 }).notNull(),
+	brand: varchar({ length: 120 }).default('Outros').notNull(),
+	specification: text(),
+	packaging: varchar({ length: 40 }).notNull(),
+	normalizedUnit: varchar("normalized_unit", { length: 40 }).default('UNIT').notNull(),
+	lastPurchasePrice: numeric("last_purchase_price", { precision: 16, scale:  6 }),
+	lastPurchaseSource: varchar("last_purchase_source", { length: 160 }),
+	lastPurchasedAt: timestamp("last_purchased_at", { withTimezone: true }),
+	lastSalePrice: numeric("last_sale_price", { precision: 16, scale:  6 }),
+	lastSoldAt: timestamp("last_sold_at", { withTimezone: true }),
+	active: boolean().default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("products_entity_active_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.active.asc().nullsLast().op("bool_ops")),
+	index("products_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("products_identity_uq").using("btree", table.entityId.asc().nullsLast().op("text_ops"), table.name.asc().nullsLast().op("text_ops"), table.brand.asc().nullsLast().op("text_ops"), table.packaging.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "products_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "products_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "products_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
 
 export type CustomerRow = typeof customersTable.$inferSelect;
 export type NewCustomerRow = typeof customersTable.$inferInsert;
-
+export type ProductRow = typeof productsTable.$inferSelect;
+export type NewProductRow = typeof productsTable.$inferInsert;
 export type PurchaseOrderRow = typeof purchaseOrdersTable.$inferSelect;
 export type NewPurchaseOrderRow = typeof purchaseOrdersTable.$inferInsert;
-
 export type PurchaseOrderItemRow = typeof purchaseOrderItemsTable.$inferSelect;
-export type NewPurchaseOrderItemRow =
-  typeof purchaseOrderItemsTable.$inferInsert;
-
-export const accountType = pgEnum("bank_account_type", [
-  "CHECKING", // Conta corrente
-  "INVESTMENT", // Conta de investimento
-  "CASH", // Dinheiro em espécie/caixa
-]);
-
-export const transactionType = pgEnum("transaction_type", [
-  "INCOME", // Receita
-  "EXPENSE", // Despesa
-]);
-
-export const recurrenceType = pgEnum("recurrence_type", [
-  "DAILY",
-  "WEEKLY",
-  "MONTHLY",
-  "MINUTELY",
-  "YEARLY",
-]);
-
-export const entityType = pgEnum("entity_type", [
-  "PF", // Pessoa Física
-  "PJ", // Pessoa Jurídica
-]);
-
-export const purchaseOrderLifecycleStatus = pgEnum(
-  "purchase_order_lifecycle_status",
-  ["DRAFT", "ACTIVE", "CANCELLED"]
-);
-
-// Helper: tipo dinheiro como string (NUMERIC) com precisão padrão.
-export const money = (name: string) =>
-  numeric(name, { precision: 14, scale: 2 });
-
-// ---------------------
-// Usuário e Entidade (PF/PJ)
-// ---------------------
-export const usersTable = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar({ length: 255 }).notNull(),
-  email: varchar({ length: 255 }).notNull().unique(),
-  externalId: varchar({ length: 255 }),
-});
-
-export const entitiesTable = pgTable(
-  "entities",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    ownerUserId: uuid("owner_user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    name: varchar({ length: 120 }).notNull().notNull(),
-    type: entityType("type").notNull().default("PF"),
-    color: varchar({ length: 7 }).notNull().default("#228be6"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    ownerIdx: index("entities_owner_idx").on(table.ownerUserId),
-  })
-);
-
-export const entitiesRelations = relations(entitiesTable, ({ one, many }) => ({
-  owner: one(usersTable, {
-    fields: [entitiesTable.ownerUserId],
-    references: [usersTable.id],
-  }),
-  accounts: many(accountsTable),
-  categories: many(categoriesTable),
-  transactions: many(transactionsTable),
-  recurringTransactions: many(recurringTransactionsTable),
-  installmentPurchases: many(installmentPurchasesTable),
-  installments: many(installmentsTable),
-  creditCards: many(creditCardsTable),
-  contacts: many(contactsTable),
-  customers: many(customersTable),
-  purchaseOrders: many(purchaseOrdersTable),
-}));
-
-// ---------------------
-// Contas (antes: bank_accounts)
-// ---------------------
-export const accountsTable = pgTable(
-  "accounts",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    // Usuário que criou/alterou (para auditoria simples)
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 120 }).notNull(),
-    initialBalance: money("initial_balance").notNull().default("0"),
-    type: accountType("type").notNull(),
-    color: varchar("color", { length: 7 }).notNull().default("#868E96"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    accEntityIdx: index("accounts_entity_idx").on(table.entityId),
-    accUserIdx: index("accounts_user_idx").on(table.userId),
-  })
-);
-
-export const accountsRelations = relations(accountsTable, ({ one, many }) => ({
-  entity: one(entitiesTable, {
-    fields: [accountsTable.entityId],
-    references: [entitiesTable.id],
-  }),
-  user: one(usersTable, {
-    fields: [accountsTable.userId],
-    references: [usersTable.id],
-  }),
-  transactions: many(transactionsTable),
-  recurringTransactions: many(recurringTransactionsTable),
-  installmentPurchases: many(installmentPurchasesTable),
-  creditCards: many(creditCardsTable),
-}));
-
-// ---------------------
-// Categorias (INCOME/EXPENSE)
-// ---------------------
-export const categoriesTable = pgTable(
-  "categories",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 80 }).notNull(),
-    icon: varchar("icon", { length: 64 }).notNull(),
-    type: transactionType("type").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    catEntityIdx: index("categories_entity_idx").on(table.entityId),
-    catUniquePerEntity: uniqueIndex("categories_entity_name_type_uq").on(
-      table.entityId,
-      table.name,
-      table.type
-    ),
-  })
-);
-
-export const categoriesRelations = relations(
-  categoriesTable,
-  ({ one, many }) => ({
-    entity: one(entitiesTable, {
-      fields: [categoriesTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [categoriesTable.userId],
-      references: [usersTable.id],
-    }),
-    transactions: many(transactionsTable),
-    recurringTransactions: many(recurringTransactionsTable),
-    installmentPurchases: many(installmentPurchasesTable),
-  })
-);
-
-// ---------------------
-// Contatos (pagadores/fornecedores)
-// ---------------------
-export const contactsTable = pgTable(
-  "contacts",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 120 }).notNull(),
-    email: varchar("email", { length: 254 }),
-    phone: varchar("phone", { length: 40 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    contactEntityIdx: index("contacts_entity_idx").on(table.entityId),
-  })
-);
-
-export const contactsRelations = relations(contactsTable, ({ one, many }) => ({
-  entity: one(entitiesTable, {
-    fields: [contactsTable.entityId],
-    references: [entitiesTable.id],
-  }),
-  user: one(usersTable, {
-    fields: [contactsTable.userId],
-    references: [usersTable.id],
-  }),
-  transactions: many(transactionsTable),
-}));
-
-// ---------------------
-// Clientes da operacao V2
-// ---------------------
-export const customersTable = pgTable(
-  "customers",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    createdByUserId: uuid("created_by_user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "restrict" }),
-    updatedByUserId: uuid("updated_by_user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "restrict" }),
-    legalName: varchar("legal_name", { length: 160 }).notNull(),
-    tradeName: varchar("trade_name", { length: 160 }),
-    document: varchar("document", { length: 40 }).notNull(),
-    email: varchar("email", { length: 254 }),
-    phone: varchar("phone", { length: 40 }),
-    billingAddress: text("billing_address"),
-    deliveryAddress: text("delivery_address"),
-    notes: text("notes"),
-    active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    customerEntityIdx: index("customers_entity_idx").on(table.entityId),
-    customerEntityDocumentUq: uniqueIndex(
-      "customers_entity_document_uq"
-    ).on(table.entityId, table.document),
-  })
-);
-
-export const customersRelations = relations(customersTable, ({ one, many }) => ({
-  entity: one(entitiesTable, {
-    fields: [customersTable.entityId],
-    references: [entitiesTable.id],
-  }),
-  createdBy: one(usersTable, {
-    fields: [customersTable.createdByUserId],
-    references: [usersTable.id],
-    relationName: "customerCreatedBy",
-  }),
-  updatedBy: one(usersTable, {
-    fields: [customersTable.updatedByUserId],
-    references: [usersTable.id],
-    relationName: "customerUpdatedBy",
-  }),
-  purchaseOrders: many(purchaseOrdersTable),
-}));
-
-// ---------------------
-// Ordens de compra da operacao V2
-// ---------------------
-export const purchaseOrdersTable = pgTable(
-  "purchase_orders",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    customerId: uuid("customer_id")
-      .notNull()
-      .references(() => customersTable.id, { onDelete: "restrict" }),
-    createdByUserId: uuid("created_by_user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "restrict" }),
-    updatedByUserId: uuid("updated_by_user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "restrict" }),
-    orderNumber: varchar("order_number", { length: 80 }).notNull(),
-    externalNumber: varchar("external_number", { length: 80 }),
-    quoteNumber: varchar("quote_number", { length: 80 }),
-    requisitionNumber: varchar("requisition_number", { length: 80 }),
-    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
-    requestedDeliveryAt: timestamp("requested_delivery_at", {
-      withTimezone: true,
-    }),
-    officialTotal: numeric("official_total", {
-      precision: 16,
-      scale: 2,
-    }).notNull(),
-    paymentTerms: text("payment_terms"),
-    instructions: text("instructions"),
-    notes: text("notes"),
-    billingAddress: text("billing_address"),
-    deliveryAddress: text("delivery_address"),
-    lifecycleStatus: purchaseOrderLifecycleStatus("lifecycle_status")
-      .notNull()
-      .default("DRAFT"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    purchaseOrderEntityIdx: index("purchase_orders_entity_idx").on(
-      table.entityId
-    ),
-    purchaseOrderCustomerIdx: index("purchase_orders_customer_idx").on(
-      table.customerId
-    ),
-    purchaseOrderDeliveryIdx: index("purchase_orders_delivery_idx").on(
-      table.entityId,
-      table.requestedDeliveryAt
-    ),
-    purchaseOrderNumberUq: uniqueIndex("purchase_orders_number_uq").on(
-      table.entityId,
-      table.customerId,
-      table.orderNumber
-    ),
-  })
-);
-
-export const purchaseOrdersRelations = relations(
-  purchaseOrdersTable,
-  ({ one, many }) => ({
-    entity: one(entitiesTable, {
-      fields: [purchaseOrdersTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    customer: one(customersTable, {
-      fields: [purchaseOrdersTable.customerId],
-      references: [customersTable.id],
-    }),
-    createdBy: one(usersTable, {
-      fields: [purchaseOrdersTable.createdByUserId],
-      references: [usersTable.id],
-      relationName: "purchaseOrderCreatedBy",
-    }),
-    updatedBy: one(usersTable, {
-      fields: [purchaseOrdersTable.updatedByUserId],
-      references: [usersTable.id],
-      relationName: "purchaseOrderUpdatedBy",
-    }),
-    items: many(purchaseOrderItemsTable),
-  })
-);
-
-export const purchaseOrderItemsTable = pgTable(
-  "purchase_order_items",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    purchaseOrderId: uuid("purchase_order_id")
-      .notNull()
-      .references(() => purchaseOrdersTable.id, { onDelete: "cascade" }),
-    lineNumber: integer("line_number").notNull(),
-    description: text("description").notNull(),
-    brand: varchar("brand", { length: 120 }).notNull(),
-    specification: text("specification"),
-    originalUnit: varchar("original_unit", { length: 40 }).notNull(),
-    normalizedUnit: varchar("normalized_unit", { length: 40 }).notNull(),
-    orderedQuantity: numeric("ordered_quantity", {
-      precision: 14,
-      scale: 3,
-    }).notNull(),
-    saleUnitPrice: numeric("sale_unit_price", {
-      precision: 16,
-      scale: 6,
-    }).notNull(),
-    officialTotal: numeric("official_total", {
-      precision: 16,
-      scale: 2,
-    }).notNull(),
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    purchaseOrderItemEntityIdx: index(
-      "purchase_order_items_entity_idx"
-    ).on(table.entityId),
-    purchaseOrderItemOrderIdx: index(
-      "purchase_order_items_order_idx"
-    ).on(table.purchaseOrderId),
-    purchaseOrderItemLineUq: uniqueIndex(
-      "purchase_order_items_line_uq"
-    ).on(table.purchaseOrderId, table.lineNumber),
-  })
-);
-
-export const purchaseOrderItemsRelations = relations(
-  purchaseOrderItemsTable,
-  ({ one }) => ({
-    entity: one(entitiesTable, {
-      fields: [purchaseOrderItemsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    purchaseOrder: one(purchaseOrdersTable, {
-      fields: [purchaseOrderItemsTable.purchaseOrderId],
-      references: [purchaseOrdersTable.id],
-    }),
-  })
-);
-
-// ---------------------
-// Cartões de Crédito
-// ---------------------
-export const creditCardsTable = pgTable(
-  "credit_cards",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id").references(() => accountsTable.id, {
-      onDelete: "set null",
-    }),
-    name: varchar("name", { length: 120 }).notNull(),
-    color: varchar("color", { length: 7 }).notNull().default("#868E96"),
-    creditLimit: money("credit_limit").notNull().default("0"),
-    // Dica: não materialize availableLimit; calcule sob demanda ou por fatura.
-    closingDay: integer("closing_day").notNull(), // dia de fechamento (1-28)
-    dueDay: integer("due_day").notNull(), // dia de vencimento (1-28)
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    ccEntityIdx: index("credit_cards_entity_idx").on(table.entityId),
-    ccAccIdx: index("credit_cards_account_idx").on(table.accountId),
-  })
-);
-
-export const creditCardsRelations = relations(
-  creditCardsTable,
-  ({ one, many }) => ({
-    entity: one(entitiesTable, {
-      fields: [creditCardsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [creditCardsTable.userId],
-      references: [usersTable.id],
-    }),
-    account: one(accountsTable, {
-      fields: [creditCardsTable.accountId],
-      references: [accountsTable.id],
-    }),
-    transactions: many(transactionsTable),
-    installmentPurchases: many(installmentPurchasesTable),
-  })
-);
-
-// ---------------------
-// Compras Parceladas (cabeçalho)
-// ---------------------
-export const installmentPurchasesTable = pgTable(
-  "installment_purchases",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id").references(() => accountsTable.id, {
-      onDelete: "cascade",
-    }),
-    categoryId: uuid("category_id").references(() => categoriesTable.id, {
-      onDelete: "set null",
-    }),
-    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
-      onDelete: "set null",
-    }),
-    name: varchar("name", { length: 160 }).notNull(),
-    totalValue: money("total_value").notNull(),
-    numberOfInstallments: integer("number_of_installments").notNull(),
-    startDate: timestamp("start_date", { withTimezone: true }).notNull(),
-    type: transactionType("type").notNull().default("EXPENSE"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    ipEntityIdx: index("installment_purchases_entity_idx").on(table.entityId),
-    ipCardIdx: index("installment_purchases_card_idx").on(table.creditCardId),
-  })
-);
-
-export const installmentPurchasesRelations = relations(
-  installmentPurchasesTable,
-  ({ one, many }) => ({
-    entity: one(entitiesTable, {
-      fields: [installmentPurchasesTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [installmentPurchasesTable.userId],
-      references: [usersTable.id],
-    }),
-    account: one(accountsTable, {
-      fields: [installmentPurchasesTable.accountId],
-      references: [accountsTable.id],
-    }),
-    category: one(categoriesTable, {
-      fields: [installmentPurchasesTable.categoryId],
-      references: [categoriesTable.id],
-    }),
-    creditCard: one(creditCardsTable, {
-      fields: [installmentPurchasesTable.creditCardId],
-      references: [creditCardsTable.id],
-    }),
-    installments: many(installmentsTable),
-    transactions: many(transactionsTable),
-  })
-);
-
-// ---------------------
-// Parcelas (cada parcela referencia 1 transação)
-// ---------------------
-export const installmentsTable = pgTable(
-  "installments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    installmentPurchaseId: uuid("installment_purchase_id")
-      .notNull()
-      .references(() => installmentPurchasesTable.id, { onDelete: "cascade" }),
-    transactionId: uuid("transaction_id")
-      .unique()
-      .references(() => transactionsTable.id, { onDelete: "cascade" }),
-    value: money("value").notNull(),
-    dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
-    paid: boolean("paid").notNull().default(false),
-    paymentDate: timestamp("payment_date", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    instEntityIdx: index("installments_entity_idx").on(table.entityId),
-    instDueIdx: index("installments_due_idx").on(table.dueDate),
-  })
-);
-
-export const installmentsRelations = relations(
-  installmentsTable,
-  ({ one }) => ({
-    entity: one(entitiesTable, {
-      fields: [installmentsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    purchase: one(installmentPurchasesTable, {
-      fields: [installmentsTable.installmentPurchaseId],
-      references: [installmentPurchasesTable.id],
-    }),
-    transaction: one(transactionsTable, {
-      fields: [installmentsTable.transactionId],
-      references: [transactionsTable.id],
-    }),
-  })
-);
-
-// ---------------------
-// Recorrências (geram transações futuras)
-// ---------------------
-export const recurringTransactionsTable = pgTable(
-  "recurring_transactions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accountsTable.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id")
-      .notNull()
-      .references(() => categoriesTable.id, {
-        onDelete: "cascade",
-      }),
-    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
-      onDelete: "set null",
-    }),
-    contactId: uuid("contact_id").references(() => contactsTable.id, {
-      onDelete: "set null",
-    }),
-    name: varchar("name", { length: 160 }).notNull(),
-    value: money("value").notNull(),
-    startDate: timestamp("start_date", { withTimezone: true }).notNull(),
-    endDate: timestamp("end_date", { withTimezone: true }),
-    recurrence: recurrenceType("recurrence").notNull(),
-    type: transactionType("type").notNull(),
-    notes: text("notes"),
-    // Opcional: série para idempotência (ex.: UUID fixo para a recorrência)
-    seriesKey: varchar("series_key", { length: 64 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    recEntityIdx: index("recurring_transactions_entity_idx").on(table.entityId),
-    recSeriesIdx: index("recurring_transactions_series_idx").on(
-      table.seriesKey
-    ),
-  })
-);
-
-export const recurringTransactionsRelations = relations(
-  recurringTransactionsTable,
-  ({ one }) => ({
-    entity: one(entitiesTable, {
-      fields: [recurringTransactionsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [recurringTransactionsTable.userId],
-      references: [usersTable.id],
-    }),
-    account: one(accountsTable, {
-      fields: [recurringTransactionsTable.accountId],
-      references: [accountsTable.id],
-    }),
-    category: one(categoriesTable, {
-      fields: [recurringTransactionsTable.categoryId],
-      references: [categoriesTable.id],
-    }),
-    creditCard: one(creditCardsTable, {
-      fields: [recurringTransactionsTable.creditCardId],
-      references: [creditCardsTable.id],
-    }),
-  })
-);
-
-// ---------------------
-// Transações (pontuais ou geradas por recorrência/parcelas)
-// ---------------------
-export const transactionsTable = pgTable(
-  "transactions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accountsTable.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id")
-      .notNull()
-      .references(() => categoriesTable.id, {
-        onDelete: "set null",
-      }),
-    creditCardId: uuid("credit_card_id").references(() => creditCardsTable.id, {
-      onDelete: "set null",
-    }),
-    installmentPurchaseId: uuid("installment_purchase_id").references(
-      () => installmentPurchasesTable.id,
-      { onDelete: "set null" }
-    ),
-    contactId: uuid("contact_id").references(() => contactsTable.id, {
-      onDelete: "set null",
-    }),
-
-    name: varchar("name", { length: 160 }).notNull(),
-    value: money("value").notNull(),
-    date: timestamp("date", { withTimezone: true }).notNull(),
-    dueDate: timestamp("due_date", { withTimezone: true }), // útil para AP/AR
-    type: transactionType("type").notNull(),
-    isPaid: boolean("is_paid").notNull().default(true), // padrão: pago no ato
-    notes: text("notes"),
-
-    // 👇 adiciona esta coluna
-    seriesKey: varchar("series_key", { length: 120 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    trxEntityDateIdx: index("transactions_entity_date_idx").on(
-      table.entityId,
-      table.date
-    ),
-    trxCardDateIdx: index("transactions_card_date_idx").on(
-      table.creditCardId,
-      table.date
-    ),
-    trxTypeIdx: index("transactions_type_idx").on(table.type),
-    trxSeriesUq: uniqueIndex("transactions_series_key_uq").on(table.seriesKey),
-  })
-);
-
-export const transactionsRelations = relations(
-  transactionsTable,
-  ({ one }) => ({
-    entity: one(entitiesTable, {
-      fields: [transactionsTable.entityId],
-      references: [entitiesTable.id],
-    }),
-    user: one(usersTable, {
-      fields: [transactionsTable.userId],
-      references: [usersTable.id],
-    }),
-    account: one(accountsTable, {
-      fields: [transactionsTable.accountId],
-      references: [accountsTable.id],
-    }),
-    category: one(categoriesTable, {
-      fields: [transactionsTable.categoryId],
-      references: [categoriesTable.id],
-    }),
-    creditCard: one(creditCardsTable, {
-      fields: [transactionsTable.creditCardId],
-      references: [creditCardsTable.id],
-    }),
-    installmentPurchase: one(installmentPurchasesTable, {
-      fields: [transactionsTable.installmentPurchaseId],
-      references: [installmentPurchasesTable.id],
-    }),
-    contact: one(contactsTable, {
-      fields: [transactionsTable.contactId],
-      references: [contactsTable.id],
-    }),
-  })
-);
-
-// ---------------------
-// Impostos & Margem (config simples de alíquota por entidade e período)
-// ---------------------
-export const taxRates = pgTable(
-  "tax_rates",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    // Período de competência da alíquota (mês/ano)
-    year: integer("year").notNull(),
-    month: integer("month").notNull(), // 1-12
-    ratePercent: numeric("rate_percent", { precision: 5, scale: 2 }).notNull(), // ex.: 6.00
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => ({
-    taxUniquePerMonth: uniqueIndex("tax_rates_entity_month_year_uq").on(
-      table.entityId,
-      table.year,
-      table.month
-    ),
-  })
-);
-
-export const taxRatesRelations = relations(taxRates, ({ one }) => ({
-  entity: one(entitiesTable, {
-    fields: [taxRates.entityId],
-    references: [entitiesTable.id],
-  }),
-  user: one(usersTable, {
-    fields: [taxRates.userId],
-    references: [usersTable.id],
-  }),
-}));
-
-// ---------------------
-// Idempotência (para POSTs que podem ser repetidos)
-// ---------------------
-export const idempotencyKeys = pgTable(
-  "idempotency_keys",
-  {
-    key: varchar("key", { length: 128 }).notNull(),
-    scope: varchar("scope", { length: 64 }).notNull(), // ex.: 'transactions.create'
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    // Opcional: salvar um hash/trecho da resposta para retornar sem reprocessar
-    responseHash: varchar("response_hash", { length: 256 }),
-  },
-  (table) => ({
-    pk: primaryKey({
-      name: "idempotency_keys_pk",
-      columns: [table.key, table.scope, table.entityId],
-    }),
-    idmpIdx: index("idempotency_keys_user_idx").on(table.userId),
-  })
-);
-
-// ---------------------
-// EXTRAS: Tabelas de auditoria (opcionais, exemplo)
-// ---------------------
-export const auditLogs = pgTable(
-  "audit_logs",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    entityId: uuid("entity_id")
-      .notNull()
-      .references(() => entitiesTable.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => usersTable.id, { onDelete: "cascade" }),
-    action: varchar("action", { length: 64 }).notNull(), // ex.: 'TRANSACTION_CREATED'
-    resource: varchar("resource", { length: 64 }).notNull(), // ex.: 'transactions'
-    resourceId: uuid("resource_id").notNull(),
-    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
-    metadata: text("metadata"), // JSON string com detalhes
-  },
-  (table) => ({
-    auditEntityIdx: index("audit_logs_entity_idx").on(table.entityId),
-  })
-);
-
-// ---------------------
-// RELATIONS auxiliares (se desejar navegar via Drizzle)
-// ---------------------
-export const usersRelations = relations(usersTable, ({ many }) => ({
-  entities: many(entitiesTable),
-  accounts: many(accountsTable),
-  categories: many(categoriesTable),
-  creditCards: many(creditCardsTable),
-  transactions: many(transactionsTable),
-  recurringTransactions: many(recurringTransactionsTable),
-  installmentPurchases: many(installmentPurchasesTable),
-  contacts: many(contactsTable),
-  customersCreated: many(customersTable, {
-    relationName: "customerCreatedBy",
-  }),
-  customersUpdated: many(customersTable, {
-    relationName: "customerUpdatedBy",
-  }),
-  purchaseOrdersCreated: many(purchaseOrdersTable, {
-    relationName: "purchaseOrderCreatedBy",
-  }),
-  purchaseOrdersUpdated: many(purchaseOrdersTable, {
-    relationName: "purchaseOrderUpdatedBy",
-  }),
-  taxRates: many(taxRates),
-}));
-
-// ---------------------
-// CONSULTAS/TIPOS: exemplos práticos
-// ---------------------
-// 1) Cálculo de saldo de uma conta:
-//    saldo = initial_balance + sum(receitas pagas) - sum(despesas pagas) + (ajustes fatura, se optar)
-//    Exemplo de agregação (pseudo):
-//    db.select({
-//      inflow: sum(case when t.type='INCOME' and t.is_paid then t.value end),
-//      outflow: sum(case when t.type='EXPENSE' and t.is_paid then t.value end),
-//    }).from(transactions as t).where(eq(t.accountId, accountId))
-//
-// 2) Fatura do cartão (competência):
-//    intervalo: (lastClosing, currentClosing]
-//    selecionar transactions com creditCardId, date dentro do intervalo.
-//
-// 3) Parcelas:
-//    cada `installments` tem `transaction_id` 1:1. Pagar parcela => marcar transaction.is_paid=true
-//    e opcionalmente setar installments.paid=true, payment_date=now().
-//
-// 4) Recorrências:
-//    usar `series_key` para idempotência por período (ex.: "rent-2025-08").
-//
-// 5) Margem de lucro (simples):
-//    margem = receitas - (custos + impostos_estimados)
-//    impostos_estimados = receitas * (taxRates.ratePercent/100) no mês/entidade.
-//
-// ---------------------
-// Dica de conexão (Neon): use o driver Web/HTTP quando possível em Serverless
-// para reduzir overhead de conexões. Ou reusar pool. Veja docs do Neon.
-// ---------------------
+export type NewPurchaseOrderItemRow = typeof purchaseOrderItemsTable.$inferInsert;
+export type AcquisitionRow = typeof acquisitionsTable.$inferSelect;
+export type NewAcquisitionRow = typeof acquisitionsTable.$inferInsert;
+export type AcquisitionItemRow = typeof acquisitionItemsTable.$inferSelect;
+export type NewAcquisitionItemRow = typeof acquisitionItemsTable.$inferInsert;
+export type AcquisitionReceiptRow = typeof acquisitionReceiptsTable.$inferSelect;
+export type NewAcquisitionReceiptRow = typeof acquisitionReceiptsTable.$inferInsert;
+export type AcquisitionReceiptItemRow = typeof acquisitionReceiptItemsTable.$inferSelect;
+export type NewAcquisitionReceiptItemRow = typeof acquisitionReceiptItemsTable.$inferInsert;
+export type DeliveryRow = typeof deliveriesTable.$inferSelect;
+export type NewDeliveryRow = typeof deliveriesTable.$inferInsert;
+export type DeliveryItemRow = typeof deliveryItemsTable.$inferSelect;
+export type NewDeliveryItemRow = typeof deliveryItemsTable.$inferInsert;
+export type InvoiceRow = typeof invoicesTable.$inferSelect;
+export type NewInvoiceRow = typeof invoicesTable.$inferInsert;
+export type InvoiceItemRow = typeof invoiceItemsTable.$inferSelect;
+export type NewInvoiceItemRow = typeof invoiceItemsTable.$inferInsert;
+export type ReceivablePaymentRow = typeof receivablePaymentsTable.$inferSelect;
+export type NewReceivablePaymentRow = typeof receivablePaymentsTable.$inferInsert;

@@ -1,8 +1,0 @@
-listCategories:
-  handler: src/main/functions/categories/listCategories.handler
-  events:
-    - httpApi:
-        path: /categories
-        method: GET
-        authorizer:
-          name: CognitoAuthorizer

@@ -11,6 +11,7 @@ import {
 } from "@application/queries/types/PurchaseOrderView";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
 import { CustomerRepository } from "@infra/database/neon/repositories/CustomerRepository";
+import { ProductRepository } from "@infra/database/neon/repositories/ProductRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -19,6 +20,7 @@ export class CreatePurchaseOrderUseCase {
   constructor(
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
     private readonly customerRepository: CustomerRepository,
+    private readonly productRepository: ProductRepository,
     private readonly organizationAccessService: OrganizationAccessService
   ) {}
 
@@ -57,6 +59,33 @@ export class CreatePurchaseOrderUseCase {
       );
     }
 
+    const products = await Promise.all(
+      [...new Set(input.items.map((item) => item.productId))].map(
+        (productId) =>
+          this.productRepository.findOne({
+            entityId: input.entityId,
+            productId,
+          })
+      )
+    );
+    const productsById = new Map(
+      products.filter((product) => product !== null).map((product) => [product.id!, product])
+    );
+
+    for (const item of input.items) {
+      const product = productsById.get(item.productId);
+
+      if (!product) {
+        throw new NotFoundException("Produto nao encontrado.");
+      }
+
+      if (!product.active) {
+        throw new BadRequestException(
+          `O produto "${product.name}" esta inativo e nao pode ser vendido.`
+        );
+      }
+    }
+
     const order = new PurchaseOrder({
       ...input,
       createdByUserId: input.userId,
@@ -64,21 +93,43 @@ export class CreatePurchaseOrderUseCase {
       billingAddress: input.billingAddress ?? customer.billingAddress,
       deliveryAddress: input.deliveryAddress ?? customer.deliveryAddress,
       items: input.items.map(
-        (item) =>
+        (item) => {
+          const product = productsById.get(item.productId)!;
+
+          return (
           new PurchaseOrderItem({
             ...item,
             entityId: input.entityId,
+            description: product.name,
+            brand: product.brand,
+            specification: product.specification,
+            originalUnit: product.packaging,
+            normalizedUnit: product.normalizedUnit,
           })
+          );
+        }
       ),
     });
 
     const created = await this.purchaseOrderRepository.create(order);
+    if (created.order.lifecycleStatus === PurchaseOrder.LifecycleStatus.ACTIVE) {
+      await this.productRepository.recordSalePrices({
+        entityId: input.entityId,
+        userId: input.userId,
+        soldAt: created.order.issuedAt,
+        items: created.order.items.map((item) => ({
+          productId: item.productId,
+          unitPrice: item.saleUnitPrice,
+        })),
+      });
+    }
     return toPurchaseOrderView(created);
   }
 }
 
 export namespace CreatePurchaseOrderUseCase {
   export type ItemInput = {
+    productId: string;
     lineNumber: number;
     description: string;
     brand: string;

@@ -8,6 +8,34 @@
       "when": 1785455555152,
       "tag": "0000_purchase_orders_v2_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785461176395,
+      "tag": "0001_acquisitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785463833487,
+      "tag": "0002_operations-cycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785675039566,
+      "tag": "0003_product-catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785680377918,
+      "tag": "0004_remove-legacy-finance",
+      "breakpoints": true
     }
   ]
 }

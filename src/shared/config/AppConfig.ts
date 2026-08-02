@@ -7,14 +7,6 @@ export class AppConfig {
 
   readonly db: AppConfig.Database;
 
-  readonly recurrence: AppConfig.Recurrence;
-
-  /*readonly storage: AppConfig.Storage;
-
-  readonly cdns: AppConfig.CDNs;
-
-  readonly queues: AppConfig.Queues; */
-
   constructor() {
     this.auth = {
       cognito: {
@@ -32,21 +24,6 @@ export class AppConfig {
       url: env.DATABASE_URL,
     };
 
-    this.recurrence = {
-      horizonDays: env.RECURRENCE_HORIZON_DAYS,
-    };
-    /*
-    this.storage = {
-      mealsBucket: env.MEALS_BUCKET,
-    };
-
-    this.cdns = {
-      mealsCDN: env.MEALS_CDN_DOMAIN_NAME,
-    };
-
-    this.queues = {
-      mealsQueueUrl: env.MEALS_QUEUE_URL,
-    }; */
   }
 }
 
@@ -67,19 +44,4 @@ export namespace AppConfig {
     url: string;
   };
 
-  export type Recurrence = {
-    horizonDays: number;
-  };
-
-  /*  export type Storage = {
-    mealsBucket: string;
-  };
-
-  export type CDNs = {
-    mealsCDN: string;
-  };
-
-  export type Queues = {
-    mealsQueueUrl: string;
-  };  */
 }

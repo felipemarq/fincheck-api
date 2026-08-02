@@ -1,44 +1,75 @@
 # Arquitetura da API
 
-## Visão geral
+## Visao geral
 
-O Fincheck API segue uma organização em camadas:
+O Fincheck API e um backend serverless organizado em camadas:
 
-- `controller`: valida entrada e define o shape da resposta HTTP
-- `use case`: coordena regras de negócio
-- `query`: monta leituras agregadas para dashboard e listagens
-- `repository`: persiste e consulta dados no banco
-- `gateway`: integrações externas, como Cognito
-- `adapter`: faz a ponte entre API Gateway/Lambda e os controllers
+- `controller`: valida entrada e define a resposta HTTP
+- `use case`: coordena regras de negocio e autorizacao
+- `query`: monta leituras agregadas
+- `repository`: persiste e consulta dados no Postgres
+- `gateway`: integra servicos externos, como Cognito
+- `adapter`: conecta API Gateway e Lambda aos controllers
 
 ## Fluxo HTTP
 
-1. O API Gateway recebe a requisição.
-2. O handler em `src/main/functions/*` chama `lambdaHttpAdapter`.
-3. O adapter resolve o controller via DI.
-4. O controller valida `body`, `params` e `query`.
-5. O controller chama o use case ou query.
-6. A resposta é serializada e devolvida para o API Gateway.
+1. O API Gateway recebe a requisicao e valida o JWT nas rotas privadas.
+2. O handler em `src/main/functions` carrega `reflect-metadata`.
+3. O `lambdaHttpAdapter` resolve o controller pelo registro de dependencias.
+4. O controller valida `body`, `params` e `query` com Zod.
+5. O use case valida o acesso do usuario a organizacao e executa a regra.
+6. O repository grava ou consulta o Neon dentro da transacao necessaria.
+7. O adapter serializa a resposta ou o erro padronizado.
 
-## Autenticação
+## Autenticacao e isolamento
 
-- O Cognito protege as rotas privadas com JWT no API Gateway.
-- O `preTokenGenerationTrigger` injeta o `internalId` do usuário local no token.
-- O backend usa esse `internalId` para mapear o usuário da aplicação.
+- Cognito emite os tokens usados pelo API Gateway.
+- `preTokenGenerationTrigger` injeta o `internalId` do usuario local.
+- `OrganizationAccessService` valida que o usuario e dono da organizacao.
+- Clientes, produtos, ordens e eventos operacionais carregam `entityId`.
+- IDs relacionados sao validados dentro da mesma organizacao e ordem.
 
-## Persistência
+A entidade existente representa a organizacao operadora. Ela pode ser PF ou PJ
+sem alterar o restante do fluxo.
 
-- O banco é Postgres no Neon.
-- O schema principal fica em `src/infra/database/neon/schema.ts`.
-- A modelagem já cobre mais domínio do que a UI atual: contas, entidades, categorias, transações, recorrências, cartões, contatos, parcelamento, impostos, idempotência e auditoria.
+## Dominio operacional
 
-## Rotinas assíncronas
+O agregado principal e a ordem de compra. Seus itens apontam para produtos do
+catalogo e preservam snapshots dos dados comerciais usados na venda.
 
-- A criação de recorrências já materializa transações futuras dentro de um horizonte.
-- A lambda `recurringMaterializeDaily` completa esse horizonte diariamente via EventBridge.
+O ciclo e composto por eventos separados:
 
-## Observações importantes
+1. aquisicao registra onde, por quem e por quanto um item foi comprado
+2. recebimento registra a chegada total ou parcial da mercadoria
+3. entrega separa e conclui lotes enviados ao cliente
+4. nota fiscal registra o faturamento dos itens entregues
+5. pagamento registra o recebimento total ou parcial da nota
 
-- A API usa uma `Saga` simples no cadastro para compensar efeitos colaterais quando uma etapa falha.
-- A materialização de recorrências usa `seriesKey` para evitar duplicidade.
-- O schema do banco já está pronto para módulos ainda não expostos no Web.
+Totais, progresso, saldo e margens sao derivados desses eventos. Cancelamentos
+preservam o historico e deixam de compor os calculos quando definido pelas
+regras de dominio.
+
+## Persistencia e migracoes
+
+- O schema Drizzle fica em `src/infra/database/neon/schema.ts`.
+- As migracoes versionadas ficam em `drizzle/`.
+- `0000` e a baseline para bancos novos.
+- `0001`, `0002` e `0003` adicionam o ciclo operacional e o catalogo.
+
+O schema atual contem somente usuarios, organizacoes e as tabelas do ciclo
+operacional. A migracao `0004_remove-legacy-finance.sql` remove contas,
+categorias, contatos, cartoes, transacoes, recorrencias, parcelamentos,
+impostos e as estruturas auxiliares da versao anterior.
+
+## Integracoes
+
+O runtime atual usa:
+
+- Cognito para autenticacao
+- API Gateway HTTP API
+- AWS Lambda
+- Neon/Postgres
+- e-mail do Cognito para recuperacao de senha
+
+Nao ha rotina agendada de recorrencias nem integracoes de S3, SQS ou DynamoDB
+no MVP atual.

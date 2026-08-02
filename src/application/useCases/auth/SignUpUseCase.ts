@@ -2,7 +2,6 @@ import { Entity } from "@application/entities/Entity";
 import { User } from "@application/entities/User";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { ConflictException } from "@application/errors/http/ConflictException";
-import { CategoryRepository } from "@infra/database/neon/repositories/CategoryRepository";
 import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { UserRepository } from "@infra/database/neon/repositories/UserRepository";
 import { AuthGateway } from "@infra/gateways/AuthGateway";
@@ -15,7 +14,6 @@ export class SignUpUseCase {
     private readonly authGateway: AuthGateway,
     private readonly userRepository: UserRepository,
     private readonly entityRepository: EntityRepository,
-    private readonly categoryRepository: CategoryRepository,
     private readonly saga: Saga
   ) {}
 
@@ -38,7 +36,7 @@ export class SignUpUseCase {
         throw new BadRequestException("Erro ao criar usuário");
       }
 
-      // Roll back the local user and its cascaded entity/categories if any
+      // Roll back the local user and its cascaded entities if any
       // subsequent step in the signup pipeline fails.
       this.saga.addCompensation(() =>
         this.userRepository.delete(pendingUser.id)
@@ -62,10 +60,6 @@ export class SignUpUseCase {
       );
 
       await this.userRepository.setExternalId(externalId, pendingUser.id);
-      await this.categoryRepository.seedDefault({
-        entityId: createdEntity.id!,
-        userId: pendingUser.id,
-      });
 
       const { accessToken, refreshToken } = await this.authGateway.signIn({
         email,

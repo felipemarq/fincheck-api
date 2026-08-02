@@ -1,0 +1,26 @@
+createDelivery:
+  handler: src/main/functions/deliveries/createDelivery.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listDeliveries:
+  handler: src/main/functions/deliveries/listDeliveries.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateDelivery:
+  handler: src/main/functions/deliveries/updateDelivery.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries/{deliveryId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

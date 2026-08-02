@@ -8,6 +8,7 @@ function makeItem(
 ): PurchaseOrderItem {
   return new PurchaseOrderItem({
     entityId: "entity-1",
+    productId: "product-1",
     lineNumber: 1,
     description: "Produto de teste",
     brand: "Marca",
@@ -76,4 +77,99 @@ test("prioriza o ciclo de vida no progresso da ordem", () => {
     activeOrder.progress,
     PurchaseOrder.Progress.PENDING_PURCHASE
   );
+});
+
+test("deriva progresso e excedente pelas quantidades adquiridas", () => {
+  const partiallyPurchased = makeOrder({
+    lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+    items: [
+      makeItem({ acquiredQuantity: 1 }),
+      makeItem({ lineNumber: 2, acquiredQuantity: 0 }),
+    ],
+  });
+
+  assert.equal(
+    partiallyPurchased.progress,
+    PurchaseOrder.Progress.PARTIALLY_PURCHASED
+  );
+  assert.equal(partiallyPurchased.items[0].purchasePendingQuantity, 1);
+
+  const purchased = makeOrder({
+    lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+    items: [
+      makeItem({ acquiredQuantity: 3 }),
+      makeItem({
+        lineNumber: 2,
+        orderedQuantity: 1,
+        acquiredQuantity: 1,
+      }),
+    ],
+  });
+
+  assert.equal(purchased.progress, PurchaseOrder.Progress.PURCHASED);
+  assert.equal(
+    purchased.items[0].progress,
+    PurchaseOrder.ItemProgress.PURCHASED_AWAITING_ARRIVAL
+  );
+  assert.equal(purchased.items[0].excessQuantity, 1);
+});
+
+test("deriva o progresso de recebimento ate a entrega", () => {
+  const ready = makeOrder({
+    lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+    items: [
+      makeItem({
+        acquiredQuantity: 2,
+        receivedQuantity: 2,
+      }),
+      makeItem({
+        lineNumber: 2,
+        orderedQuantity: 1,
+        acquiredQuantity: 1,
+        receivedQuantity: 1,
+      }),
+    ],
+  });
+
+  assert.equal(
+    ready.progress,
+    PurchaseOrder.Progress.READY_FOR_DELIVERY
+  );
+  assert.equal(ready.items[0].availableForDeliveryQuantity, 2);
+
+  const delivered = makeOrder({
+    lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+    items: [
+      makeItem({
+        acquiredQuantity: 2,
+        receivedQuantity: 2,
+        committedDeliveryQuantity: 2,
+        deliveredQuantity: 2,
+      }),
+      makeItem({
+        lineNumber: 2,
+        orderedQuantity: 1,
+        acquiredQuantity: 1,
+        receivedQuantity: 1,
+        committedDeliveryQuantity: 1,
+        deliveredQuantity: 1,
+      }),
+    ],
+  });
+
+  assert.equal(delivered.progress, PurchaseOrder.Progress.DELIVERED);
+});
+
+test("calcula margens projetada e faturada da ordem", () => {
+  const order = makeOrder({
+    officialTotal: 1000,
+    knownAcquisitionCost: 300,
+    deliveryCost: 50,
+    invoicedRevenue: 900,
+    taxCost: 90,
+    otherDeductions: 10,
+  });
+
+  assert.equal(order.projectedMargin, 550);
+  assert.equal(order.invoicedMargin, 450);
 });

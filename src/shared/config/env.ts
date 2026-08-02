@@ -9,16 +9,6 @@ const schema = z.object({
   // Database
   DATABASE_URL: z.string().min(1),
 
-  RECURRENCE_HORIZON_DAYS: z.coerce.number().int().min(1).max(365).default(90),
-  /*
-  // Buckets
-  MEALS_BUCKET: z.string().min(1),
-
-  // CDN
-  MEALS_CDN_DOMAIN_NAME: z.string().min(1),
-
-  // Queues
-  MEALS_QUEUE_URL: z.string().min(1), */
 });
 
 export const env = schema.parse(process.env);

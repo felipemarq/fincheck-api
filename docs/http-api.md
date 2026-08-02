@@ -1,5 +1,8 @@
 # API HTTP atual
 
+Todas as rotas privadas exigem `Authorization: Bearer <token>`. As rotas
+operacionais tambem recebem o `entityId` no caminho para isolar a organizacao.
+
 ## Auth
 
 - `POST /auth/sign-up`
@@ -8,93 +11,121 @@
 - `POST /auth/forgot-password/confirm`
 - `POST /auth/refresh-token`
 
-## Usuario
+## Usuario e organizacoes
 
 - `GET /me`
-
-## Entidades
-
 - `POST /entities`
 - `PATCH /entities/{entityId}`
 
-## Contas
+Uma organizacao pode representar uma operacao PF ou PJ. A resposta de `/me`
+inclui as organizacoes do usuario.
 
-- `POST /accounts`
-- `GET /entities/{entityId}/accounts`
-- `PATCH /entities/{entityId}/accounts/{accountId}`
-- `DELETE /entities/{entityId}/accounts/{accountId}`
-
-Observacoes:
-
-- A exclusao de contas e protegida: a API bloqueia a remocao quando a conta ainda estiver vinculada a transacoes, recorrencias, compras parceladas ou cartoes.
-
-## Categorias
-
-- `GET /categories?entityId={entityId}`
-
-## Contatos
-
-- `POST /entities/{entityId}/contacts`
-- `GET /entities/{entityId}/contacts`
-- `PATCH /entities/{entityId}/contacts/{contactId}`
-- `DELETE /entities/{entityId}/contacts/{contactId}`
-
-## Clientes V2
+## Clientes
 
 - `POST /entities/{entityId}/customers`
 - `GET /entities/{entityId}/customers`
 - `PATCH /entities/{entityId}/customers/{customerId}`
 
-Observacoes:
+A listagem aceita `search` e `active`. O documento e unico por organizacao.
+Clientes inativos permanecem no historico e nao recebem novas ordens.
 
-- O documento e unico por cliente dentro da organizacao.
-- A listagem aceita `search` e `active`.
-- Clientes inativos permanecem no historico, mas nao recebem novas ordens.
+## Produtos
 
-## Ordens de compra V2
+- `POST /entities/{entityId}/products`
+- `GET /entities/{entityId}/products`
+- `PATCH /entities/{entityId}/products/{productId}`
+- `DELETE /entities/{entityId}/products/{productId}`
+
+A listagem aceita `search` e `active`. O catalogo guarda nome, marca,
+especificacao, embalagem, unidade normalizada e referencias opcionais de
+preco. Ordens atualizam a ultima venda e aquisicoes atualizam a ultima compra.
+Produtos com historico devem ser inativados.
+
+## Ordens de compra
 
 - `POST /entities/{entityId}/purchase-orders`
 - `GET /entities/{entityId}/purchase-orders`
 - `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}`
 - `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}`
 
-Observacoes:
+Criacao e edicao persistem cabecalho e itens na mesma transacao. Cada item
+referencia um produto e preserva seu snapshot. A listagem aceita `search`,
+`customerId` e `lifecycleStatus`.
 
-- Criacao e edicao persistem o cabecalho e os itens em uma unica transacao.
-- A listagem aceita `search`, `customerId` e `lifecycleStatus`.
-- O detalhe informa o valor oficial, a soma dos itens e se ha divergencia.
-- O progresso inicial e `PENDING_PURCHASE`; aquisicoes entram na proxima etapa.
+O detalhe retorna o total oficial, a soma calculada, divergencia, custos,
+quantidades e progresso. Os itens deixam de ser substituiveis depois da
+primeira aquisicao.
 
-## Transacoes
+## Aquisicoes
 
-- `POST /transactions`
-- `GET /transactions`
-- `PATCH /transactions/{transactionId}`
-- `DELETE /entities/{entityId}/transactions/{transactionId}`
+- `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions`
+- `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}`
 
-Observacoes:
+Uma aquisicao pertence a uma ordem e pode atender varios itens. Um item pode
+ser atendido por varias aquisicoes. Quantidade excedente e informativa.
 
-- `GET /transactions` aceita filtros por `entityId`, `type`, `isPaid`, `accountId`, `categoryId`, `contactId`, faixas de `date` e `dueDate`, alem de ordenacao por `date`, `dueDate`, `createdAt`, `value` e `name`.
-- A listagem de transacoes tambem devolve as referencias resolvidas de conta, categoria e contato para apoiar telas operacionais no Web.
+Os estados manuais sao `PLACED`, `IN_TRANSIT` e `CANCELLED`.
+`PARTIALLY_RECEIVED` e `RECEIVED` sao derivados pelas chegadas. A
+identificacao de cartao aceita somente os quatro ultimos digitos.
 
-## Recorrencias
+## Recebimentos de mercadoria
 
-- `POST /recurring-transactions`
-- `GET /recurring-transactions`
-- `PATCH /recurring-transactions/{recurringTransactionId}`
-- `DELETE /entities/{entityId}/recurring-transactions/{recurringTransactionId}`
+- `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts`
+- `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts/{receiptId}`
 
-## Dashboard
+Uma aquisicao aceita varias chegadas parciais. A soma recebida nao pode superar
+a quantidade comprada. Uma alteracao nao pode invalidar mercadoria ja separada
+para entrega.
 
-- `GET /dashboard`
+## Entregas
 
-Observacoes:
+- `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries`
+- `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/deliveries/{deliveryId}`
 
-- A secao `settlements` do dashboard resume contas a pagar e contas a receber em aberto, vencidas, para hoje e para os proximos dias.
+Uma ordem aceita varios lotes parciais. Somente mercadoria recebida e contratada
+pode ser separada. Os estados sao `PREPARING`, `DISPATCHED`, `DELIVERED`
+e `CANCELLED`. `freightCost` e opcional; destinatario e rastreio nao fazem
+parte do contrato do MVP.
 
-## Outros modulos expostos
+## Notas fiscais e pagamentos
 
-- `POST /credit-cards`
-- `GET /credit-cards`
-- `PATCH /credit-cards/{creditCardId}`
-- `PUT /entities/{entityId}/tax-rates/{year}/{month}`
+- `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices`
+- `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}`
+- `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments`
+- `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments/{paymentId}`
+
+Uma nota pode faturar varios itens entregues. Pagamentos parciais sao aceitos e
+nao podem superar o saldo. Impostos afetam a margem, mas nao reduzem
+automaticamente o titulo.
+
+## Painel operacional
+
+- `GET /entities/{entityId}/operations-dashboard`
+
+O retorno resume filas de compra, chegada, entrega, faturamento e recebimento,
+alem de atrasos, custos, saldos e margens.
+
+## Formato de erro
+
+Erros de validacao seguem o formato:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION",
+    "message": [
+      {
+        "field": "items.0.description",
+        "message": "Campo invalido"
+      }
+    ]
+  }
+}
+```
+
+Os endpoints financeiros genericos da versao anterior nao sao publicados pelo
+`serverless.yml` atual.

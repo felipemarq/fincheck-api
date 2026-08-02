@@ -22,8 +22,10 @@ provider:
     cors:
       allowedOrigins:
         - http://localhost:5173 # Vite
-        - http://127.0.0.1:5173 # às vezes o Vite usa 127.0.0.1
-        - https://app.moneystack.com.br # prod (se já existir)
+        - http://127.0.0.1:5173
+        - http://localhost:5174 # Compatibilidade com sessoes Vite ja abertas
+        - http://127.0.0.1:5174
+        - https://app.moneystack.com.br
       allowedHeaders:
         - Content-Type
         - Authorization
@@ -36,7 +38,7 @@ provider:
         - PUT
         - PATCH
         - DELETE
-      allowCredentials: false # true só se você usar cookies
+      allowCredentials: false
       maxAge: 600
 
 package:
@@ -52,18 +54,16 @@ build:
 
 functions:
   - ${file(./sls/functions/auth.yml)}
-  - ${file(./sls/functions/accounts.yml)}
-  - ${file(./sls/functions/transactions.yml)}
-  - ${file(./sls/functions/recurringTransactions.yml)}
-  - ${file(./sls/functions/creditCards.yml)}
-  - ${file(./sls/functions/contacts.yml)}
   - ${file(./sls/functions/customers.yml)}
+  - ${file(./sls/functions/products.yml)}
   - ${file(./sls/functions/purchaseOrders.yml)}
-  - ${file(./sls/functions/taxes.yml)}
-  - ${file(./sls/functions/dashboard.yml)}
+  - ${file(./sls/functions/acquisitions.yml)}
+  - ${file(./sls/functions/receipts.yml)}
+  - ${file(./sls/functions/deliveries.yml)}
+  - ${file(./sls/functions/invoices.yml)}
+  - ${file(./sls/functions/operationsDashboard.yml)}
   - ${file(./sls/functions/entities.yml)}
   - ${file(./sls/functions/users.yml)}
-  - ${file(./sls/functions/categories.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

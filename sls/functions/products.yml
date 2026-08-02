@@ -1,0 +1,35 @@
+createProduct:
+  handler: src/main/functions/products/createProduct.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/products
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listProducts:
+  handler: src/main/functions/products/listProducts.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/products
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateProduct:
+  handler: src/main/functions/products/updateProduct.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/products/{productId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteProduct:
+  handler: src/main/functions/products/deleteProduct.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/products/{productId}
+        method: DELETE
+        authorizer:
+          name: CognitoAuthorizer

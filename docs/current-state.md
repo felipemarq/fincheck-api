@@ -1,69 +1,83 @@
 # Estado atual da API
 
-## O que esta solido
+## Escopo ativo
 
-- Estrutura por camadas consistente.
-- `typecheck` e `lint` habilitados no repositorio.
-- Fluxos principais de auth, entidades, contas, transacoes, recorrencias, dashboard, contatos e resumo financeiro ja existem.
-- O modelo de dados foi desenhado pensando em expansao do produto.
+A branch `codex/purchase-orders-v2` concentra o runtime no fluxo operacional
+de ordens de compra. Os modulos ativos sao:
 
-## O que o frontend usa hoje
+- autenticacao e usuario atual
+- organizacoes PF/PJ
+- clientes
+- produtos
+- ordens e itens
+- aquisicoes e recebimentos de mercadoria
+- entregas
+- notas fiscais e pagamentos
+- painel operacional
 
-- `POST /auth/sign-up`
-- `POST /auth/sign-in`
-- `POST /auth/refresh-token`
-- `POST /auth/forgot-password`
-- `POST /auth/forgot-password/confirm`
-- `GET /me`
-- `POST /entities`
-- `PATCH /entities/{entityId}`
-- `POST /accounts`
-- `GET /entities/{entityId}/accounts`
-- `PATCH /entities/{entityId}/accounts/{accountId}`
-- `DELETE /entities/{entityId}/accounts/{accountId}`
-- `GET /categories`
-- `GET/POST/PATCH` de cartoes
-- `GET/POST/PATCH/DELETE` de contatos
-- `GET/POST/PATCH/DELETE` de transacoes
-- `GET/POST/PATCH/DELETE` de recorrencias
-- `PUT` de impostos mensais
-- `GET /dashboard`, incluindo a secao `settlements` para contas a pagar/receber
+As rotas e implementacoes da antiga gestao financeira generica foram retiradas.
+Isso inclui contas, categorias, contatos, cartoes, transacoes, recorrencias,
+impostos mensais e o dashboard antigo.
 
-## O que ja existe mas ainda nao virou produto completo
+## Fluxo implementado
 
-- Relatorios
-- Investimentos
-- Parcelamento
-- Idempotencia
-- Auditoria
+1. o usuario entra e seleciona uma organizacao
+2. cadastra o cliente comprador
+3. cadastra produtos ou usa o cadastro rapido dentro da ordem
+4. cria a ordem e informa quantidades e precos de venda
+5. registra uma ou mais aquisicoes para cada item
+6. registra chegadas totais ou parciais
+7. registra lotes de entrega
+8. registra notas fiscais sobre itens entregues
+9. registra pagamentos totais ou parciais
+10. acompanha pendencias, custos, saldo e margem no painel
 
-## Correcoes estruturais aplicadas na base
+## Regras relevantes
 
-- Ajuste do fluxo de signup para registrar compensacoes no momento correto.
-- Correcao do `package.json`, `.env.example` e baseline de lint.
-- Limpeza da documentacao herdada do scaffold.
-- Alinhamento dos contratos usados pelo Web.
-- Gestao de contas expandida com edicao e exclusao protegida contra vinculos financeiros.
+- todos os dados operacionais sao isolados por organizacao
+- produtos com historico sao inativados, nao excluidos
+- os itens preservam snapshots do produto usado na ordem
+- itens nao podem ser substituidos depois da primeira aquisicao
+- aquisicoes, recebimentos, entregas e pagamentos aceitam parcialidade
+- cancelamentos preservam o historico
+- o total oficial da ordem fica separado da soma calculada dos itens
+- frete de entrega e opcional
+- destinatario e rastreio nao fazem parte do MVP
+- pagamentos nao podem superar o saldo da nota
+- custos e margens sao derivados dos eventos operacionais
 
-## Direcao planejada
+## Banco de dados
 
-O produto esta sendo simplificado e reposicionado para gestao operacional e
-financeira de ordens de compra. A reformulacao completa ainda nao esta
-implementada e nao altera a descricao dos modulos legados acima.
+O schema atual possui 15 tabelas e 7 enums, todos pertencentes ao MVP. A
+migracao `0004_remove-legacy-finance.sql` removeu 11 tabelas e 3 enums da
+versao financeira anterior depois da confirmacao de que estavam vazios e sem
+dependencias vindas das tabelas operacionais.
 
-As regras, os limites do MVP e a sequencia recomendada estao em
-[Regras de negocio v2 - Ordens de compra](./business-rules-v2.md).
+O banco configurado para desenvolvimento foi atualizado em uma unica transacao
+e conferido depois da aplicacao. O journal `drizzle.__drizzle_migrations` foi
+inicializado na `0004`, permitindo que as proximas migracoes usem
+`pnpm db:migrate` normalmente sem tentar recriar a baseline.
 
-## Primeira fatia V2
+A migracao `0003_product-catalog.sql` deve ser aplicada antes do deploy do
+catalogo e dos itens com `productId` obrigatorio.
 
-Na branch `codex/purchase-orders-v2`, a primeira fatia adiciona:
+## Qualidade atual
 
-- baseline de migracoes para um banco novo da V2;
-- clientes isolados por organizacao;
-- ordens de compra e seus itens;
-- criacao, edicao, listagem e detalhe;
-- total oficial separado da soma calculada;
-- testes das primeiras regras de dominio.
+- validacao HTTP com Zod
+- injecao de dependencias com `reflect-metadata`
+- testes de schemas e regras operacionais
+- typecheck e lint configurados
+- migracoes Drizzle verificaveis
+- configuracao Serverless imprimivel antes do deploy
 
-Essa fatia ainda nao inclui aquisicoes, recebimentos de mercadoria, entregas ou
-faturamento.
+## Fora do MVP
+
+- anexos e armazenamento de PDFs
+- OCR e importacao automatica de ordens
+- estoque excedente reutilizavel entre ordens
+- conciliacao bancaria
+- fluxo de caixa generico
+- relatorios avancados e exportacao
+
+O proximo passo recomendado e validar o ciclo completo com cotacoes e ordens
+reais antes de iniciar qualquer funcionalidade pos-MVP.

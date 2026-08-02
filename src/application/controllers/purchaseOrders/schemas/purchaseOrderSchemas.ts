@@ -8,18 +8,22 @@ import {
 } from "@application/controllers/v2Schemas";
 import { z } from "zod";
 
+const nullableItemString = (max: number) =>
+  nullableOptionalString(max).transform((value) => value ?? undefined);
+
 const purchaseOrderItemSchema = z.object({
   id: z.string().uuid().optional(),
+  productId: z.string().uuid(),
   lineNumber: z.coerce.number().int().positive(),
   description: z.string().trim().min(1).max(4000),
   brand: z.string().trim().min(1).max(120),
-  specification: optionalString(4000),
+  specification: nullableItemString(4000),
   originalUnit: z.string().trim().min(1).max(40),
   normalizedUnit: z.string().trim().min(1).max(40),
   orderedQuantity: z.coerce.number().positive().max(99_999_999_999),
   saleUnitPrice: z.coerce.number().nonnegative().max(9_999_999_999),
   officialTotal: z.coerce.number().nonnegative().max(9_999_999_999),
-  notes: optionalString(4000),
+  notes: nullableItemString(4000),
 });
 
 const purchaseOrderItemsSchema = z

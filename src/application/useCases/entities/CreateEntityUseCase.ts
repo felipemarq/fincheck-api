@@ -1,14 +1,10 @@
 import { Entity } from "@application/entities/Entity";
-import { CategoryRepository } from "@infra/database/neon/repositories/CategoryRepository";
 import { EntityRepository } from "@infra/database/neon/repositories/EntityRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
 @Injectable()
 export class CreateEntityUseCase {
-  constructor(
-    private readonly entityRepository: EntityRepository,
-    private readonly categoryRepository: CategoryRepository
-  ) {}
+  constructor(private readonly entityRepository: EntityRepository) {}
 
   async execute({
     userId,
@@ -23,19 +19,7 @@ export class CreateEntityUseCase {
       color,
     });
 
-    const createdEntity = await this.entityRepository.create(entity);
-
-    try {
-      await this.categoryRepository.seedDefault({
-        entityId: createdEntity.id!,
-        userId,
-      });
-    } catch (error) {
-      await this.entityRepository.delete(createdEntity.id!);
-      throw error;
-    }
-
-    return createdEntity;
+    return this.entityRepository.create(entity);
   }
 }
 

@@ -1,0 +1,26 @@
+createAcquisition:
+  handler: src/main/functions/acquisitions/createAcquisition.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listAcquisitions:
+  handler: src/main/functions/acquisitions/listAcquisitions.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateAcquisition:
+  handler: src/main/functions/acquisitions/updateAcquisition.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

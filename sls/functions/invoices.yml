@@ -1,0 +1,44 @@
+createInvoice:
+  handler: src/main/functions/invoices/createInvoice.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listInvoices:
+  handler: src/main/functions/invoices/listInvoices.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateInvoice:
+  handler: src/main/functions/invoices/updateInvoice.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
+
+createReceivablePayment:
+  handler: src/main/functions/invoices/createReceivablePayment.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+updateReceivablePayment:
+  handler: src/main/functions/invoices/updateReceivablePayment.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments/{paymentId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

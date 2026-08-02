@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPurchaseOrderSchema } from "./purchaseOrderSchemas";
+import {
+  createPurchaseOrderSchema,
+  updatePurchaseOrderSchema,
+} from "./purchaseOrderSchemas";
 
 const validItem = {
+  productId: "ef631136-0e21-4c53-acf5-7cfab52f71dd",
   lineNumber: 1,
   description: "Produto de teste",
   brand: "Marca",
@@ -38,4 +42,20 @@ test("rejeita numeros de linha repetidos", () => {
   });
 
   assert.equal(result.success, false);
+});
+
+test("aceita campos opcionais nulos nos itens durante a edicao", () => {
+  const parsed = updatePurchaseOrderSchema.parse({
+    items: [
+      {
+        ...validItem,
+        id: "ee55cd16-48a1-48cf-aeda-3e50719ae29f",
+        specification: null,
+        notes: null,
+      },
+    ],
+  });
+
+  assert.equal(parsed.items?.[0].specification, undefined);
+  assert.equal(parsed.items?.[0].notes, undefined);
 });

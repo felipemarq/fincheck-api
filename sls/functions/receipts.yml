@@ -1,0 +1,26 @@
+createAcquisitionReceipt:
+  handler: src/main/functions/receipts/createAcquisitionReceipt.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listAcquisitionReceipts:
+  handler: src/main/functions/receipts/listAcquisitionReceipts.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateAcquisitionReceipt:
+  handler: src/main/functions/receipts/updateAcquisitionReceipt.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts/{receiptId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
