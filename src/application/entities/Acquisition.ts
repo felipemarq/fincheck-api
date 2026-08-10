@@ -2,15 +2,51 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+export class AcquisitionAllocation {
+  readonly id?: string;
+  readonly entityId: string;
+  readonly acquisitionItemId?: string;
+  readonly purchaseOrderItemId: string;
+  readonly allocatedQuantity: number;
+  readonly notes?: string;
+  readonly createdAt?: Date;
+  readonly updatedAt?: Date;
+
+  constructor(attributes: AcquisitionAllocation.Attributes) {
+    this.id = attributes.id;
+    this.entityId = attributes.entityId;
+    this.acquisitionItemId = attributes.acquisitionItemId;
+    this.purchaseOrderItemId = attributes.purchaseOrderItemId;
+    this.allocatedQuantity = attributes.allocatedQuantity;
+    this.notes = attributes.notes;
+    this.createdAt = attributes.createdAt;
+    this.updatedAt = attributes.updatedAt;
+  }
+}
+
+export namespace AcquisitionAllocation {
+  export type Attributes = {
+    id?: string;
+    entityId: string;
+    acquisitionItemId?: string;
+    purchaseOrderItemId: string;
+    allocatedQuantity: number;
+    notes?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+  };
+}
+
 export class AcquisitionItem {
   readonly id?: string;
   readonly entityId: string;
   readonly acquisitionId?: string;
-  readonly purchaseOrderItemId: string;
+  readonly productId: string;
   readonly acquiredQuantity: number;
   readonly costUnitPrice: number;
   readonly lineDiscount: number;
   readonly notes?: string;
+  readonly allocations: AcquisitionAllocation[];
   readonly createdAt?: Date;
   readonly updatedAt?: Date;
 
@@ -18,11 +54,12 @@ export class AcquisitionItem {
     this.id = attributes.id;
     this.entityId = attributes.entityId;
     this.acquisitionId = attributes.acquisitionId;
-    this.purchaseOrderItemId = attributes.purchaseOrderItemId;
+    this.productId = attributes.productId;
     this.acquiredQuantity = attributes.acquiredQuantity;
     this.costUnitPrice = attributes.costUnitPrice;
     this.lineDiscount = attributes.lineDiscount ?? 0;
     this.notes = attributes.notes;
+    this.allocations = attributes.allocations ?? [];
     this.createdAt = attributes.createdAt;
     this.updatedAt = attributes.updatedAt;
   }
@@ -34,6 +71,17 @@ export class AcquisitionItem {
   get totalCost(): number {
     return roundMoney(this.grossCost - this.lineDiscount);
   }
+
+  get allocatedQuantity(): number {
+    return this.allocations.reduce(
+      (total, allocation) => total + allocation.allocatedQuantity,
+      0
+    );
+  }
+
+  get unallocatedQuantity(): number {
+    return Math.max(this.acquiredQuantity - this.allocatedQuantity, 0);
+  }
 }
 
 export namespace AcquisitionItem {
@@ -41,11 +89,12 @@ export namespace AcquisitionItem {
     id?: string;
     entityId: string;
     acquisitionId?: string;
-    purchaseOrderItemId: string;
+    productId: string;
     acquiredQuantity: number;
     costUnitPrice: number;
     lineDiscount?: number;
     notes?: string;
+    allocations?: AcquisitionAllocation[];
     createdAt?: Date;
     updatedAt?: Date;
   };
@@ -54,7 +103,7 @@ export namespace AcquisitionItem {
 export class Acquisition {
   readonly id?: string;
   readonly entityId: string;
-  readonly purchaseOrderId: string;
+  readonly purchaseOrderId?: string;
   readonly createdByUserId: string;
   readonly updatedByUserId: string;
   readonly sellerName?: string;
@@ -66,6 +115,9 @@ export class Acquisition {
   readonly paymentMethod: string;
   readonly paymentInstrument?: string;
   readonly paymentHolder?: string;
+  readonly creditCardId?: string;
+  readonly installmentCount: number;
+  readonly firstPaymentDueAt?: Date;
   readonly shippingCost: number;
   readonly generalDiscount: number;
   readonly otherExpenses: number;
@@ -90,6 +142,9 @@ export class Acquisition {
     this.paymentMethod = attributes.paymentMethod;
     this.paymentInstrument = attributes.paymentInstrument;
     this.paymentHolder = attributes.paymentHolder;
+    this.creditCardId = attributes.creditCardId;
+    this.installmentCount = attributes.installmentCount ?? 1;
+    this.firstPaymentDueAt = attributes.firstPaymentDueAt;
     this.shippingCost = attributes.shippingCost ?? 0;
     this.generalDiscount = attributes.generalDiscount ?? 0;
     this.otherExpenses = attributes.otherExpenses ?? 0;
@@ -121,6 +176,16 @@ export class Acquisition {
 }
 
 export namespace Acquisition {
+  export enum PaymentMethod {
+    PIX = "PIX",
+    CREDIT_CARD = "CREDIT_CARD",
+    DEBIT_CARD = "DEBIT_CARD",
+    BOLETO = "BOLETO",
+    BANK_TRANSFER = "BANK_TRANSFER",
+    CASH = "CASH",
+    OTHER = "OTHER",
+  }
+
   export enum Status {
     PLACED = "PLACED",
     IN_TRANSIT = "IN_TRANSIT",
@@ -132,7 +197,7 @@ export namespace Acquisition {
   export type Attributes = {
     id?: string;
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     createdByUserId: string;
     updatedByUserId: string;
     sellerName?: string;
@@ -144,6 +209,9 @@ export namespace Acquisition {
     paymentMethod: string;
     paymentInstrument?: string;
     paymentHolder?: string;
+    creditCardId?: string;
+    installmentCount?: number;
+    firstPaymentDueAt?: Date;
     shippingCost?: number;
     generalDiscount?: number;
     otherExpenses?: number;

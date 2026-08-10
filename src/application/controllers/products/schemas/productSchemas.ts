@@ -22,7 +22,26 @@ const brandSchema = z.preprocess(
   z.string().max(120)
 );
 
+const codeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .transform((value) => value.toUpperCase());
+
+const optionalCode = z.preprocess(
+  (value) =>
+    typeof value === "string" && !value.trim() ? undefined : value,
+  codeSchema.optional()
+);
+
+const nullableOptionalCode = z.preprocess(
+  (value) => (typeof value === "string" && !value.trim() ? null : value),
+  codeSchema.nullable().optional()
+);
+
 const productFields = {
+  code: optionalCode,
   name: z.string().trim().min(1, "Nome e obrigatorio.").max(240),
   brand: brandSchema,
   specification: optionalString(4000),
@@ -44,6 +63,7 @@ export const createProductSchema = z.object(productFields);
 
 export const updateProductSchema = z
   .object({
+    code: nullableOptionalCode,
     name: productFields.name.optional(),
     brand: brandSchema.optional(),
     specification: nullableOptionalString(4000),

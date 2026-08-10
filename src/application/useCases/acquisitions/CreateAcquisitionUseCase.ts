@@ -1,27 +1,24 @@
-import {
-  Acquisition,
-  AcquisitionItem,
-} from "@application/entities/Acquisition";
-import { PurchaseOrder } from "@application/entities/PurchaseOrder";
-import { BadRequestException } from "@application/errors/http/BadRequestException";
-import { NotFoundException } from "@application/errors/http/NotFoundException";
-import {
-  AcquisitionView,
-  toAcquisitionView,
-} from "@application/queries/types/AcquisitionView";
+import { Acquisition } from "@application/entities/Acquisition";
+import { AcquisitionPreparationService } from "@application/services/AcquisitionPreparationService";
+import { AcquisitionViewService } from "@application/services/AcquisitionViewService";
+import { buildPaymentSchedule } from "@application/services/buildPaymentSchedule";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { PaymentConfigurationService } from "@application/services/PaymentConfigurationService";
 import { validateAcquisition } from "@application/services/validateAcquisition";
 import { AcquisitionRepository } from "@infra/database/neon/repositories/AcquisitionRepository";
+import { PayableRepository } from "@infra/database/neon/repositories/PayableRepository";
 import { ProductRepository } from "@infra/database/neon/repositories/ProductRepository";
-import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
 @Injectable()
 export class CreateAcquisitionUseCase {
   constructor(
     private readonly acquisitionRepository: AcquisitionRepository,
-    private readonly purchaseOrderRepository: PurchaseOrderRepository,
     private readonly productRepository: ProductRepository,
+    private readonly payableRepository: PayableRepository,
+    private readonly paymentConfigurationService: PaymentConfigurationService,
+    private readonly acquisitionPreparationService: AcquisitionPreparationService,
+    private readonly acquisitionViewService: AcquisitionViewService,
     private readonly organizationAccessService: OrganizationAccessService
   ) {}
 
@@ -33,70 +30,57 @@ export class CreateAcquisitionUseCase {
       input.userId
     );
 
-    const purchaseOrderRecord =
-      await this.purchaseOrderRepository.findOne(input);
-
-    if (!purchaseOrderRecord) {
-      throw new NotFoundException("Ordem de compra nao encontrada.");
-    }
-
-    if (
-      purchaseOrderRecord.order.lifecycleStatus !==
-      PurchaseOrder.LifecycleStatus.ACTIVE
-    ) {
-      throw new BadRequestException(
-        "Somente ordens ativas aceitam novas aquisicoes."
-      );
-    }
-
+    const [payment, prepared] = await Promise.all([
+      this.paymentConfigurationService.normalize(input),
+      this.acquisitionPreparationService.prepare(input),
+    ]);
     const acquisition = new Acquisition({
       ...input,
+      ...payment,
+      purchaseOrderId: prepared.purchaseOrderId,
       createdByUserId: input.userId,
       updatedByUserId: input.userId,
-      items: input.items.map(
-        (item) =>
-          new AcquisitionItem({
-            ...item,
-            entityId: input.entityId,
-          })
-      ),
+      items: prepared.items,
     });
 
-    validateAcquisition(acquisition, purchaseOrderRecord.order);
+    validateAcquisition(acquisition);
 
     const created = await this.acquisitionRepository.create(acquisition);
+    await this.payableRepository.replaceForAcquisition({
+      acquisitionId: created.id!,
+      entityId: created.entityId,
+      payables: buildPaymentSchedule(created),
+    });
+
     if (!created.isCancelled) {
-      const orderItemsById = new Map(
-        purchaseOrderRecord.order.items.map((item) => [item.id!, item])
-      );
       await this.productRepository.recordPurchasePrices({
         entityId: input.entityId,
         userId: input.userId,
         purchasedAt: created.purchasedAt,
         source: created.channel ?? created.sellerName,
         items: created.items.map((item) => ({
-          productId: orderItemsById.get(item.purchaseOrderItemId)!.productId,
+          productId: item.productId,
           unitPrice: item.costUnitPrice,
         })),
       });
     }
-    return toAcquisitionView(created, purchaseOrderRecord.order.items);
+
+    return (
+      await this.acquisitionViewService.build(
+        [created],
+        input.purchaseOrderId
+      )
+    )[0];
   }
 }
 
 export namespace CreateAcquisitionUseCase {
-  export type ItemInput = {
-    purchaseOrderItemId: string;
-    acquiredQuantity: number;
-    costUnitPrice: number;
-    lineDiscount?: number;
-    notes?: string;
-  };
+  export type ItemInput = AcquisitionPreparationService.ItemInput;
 
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     sellerName?: string;
     sellerDocument?: string;
     channel?: string;
@@ -106,6 +90,9 @@ export namespace CreateAcquisitionUseCase {
     paymentMethod: string;
     paymentInstrument?: string;
     paymentHolder?: string;
+    creditCardId?: string;
+    installmentCount?: number;
+    firstPaymentDueAt?: Date;
     shippingCost?: number;
     generalDiscount?: number;
     otherExpenses?: number;
@@ -114,5 +101,5 @@ export namespace CreateAcquisitionUseCase {
     items: ItemInput[];
   };
 
-  export type Output = AcquisitionView;
+  export type Output = import("@application/queries/types/AcquisitionView").AcquisitionView;
 }

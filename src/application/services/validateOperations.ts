@@ -7,6 +7,13 @@ import { BadRequestException } from "@application/errors/http/BadRequestExceptio
 
 const QUANTITY_TOLERANCE = 0.0005;
 
+export function acquisitionReceiptItemKey(
+  acquisitionItemId: string,
+  purchaseOrderItemId: string
+): string {
+  return `${acquisitionItemId}:${purchaseOrderItemId}`;
+}
+
 export function validateReceipt(
   receipt: AcquisitionReceipt,
   acquisition: Acquisition,
@@ -33,22 +40,27 @@ export function validateReceipt(
     const acquisitionItem = acquisitionItemsById.get(
       item.acquisitionItemId
     );
+    const allocation = acquisitionItem?.allocations.find(
+      (candidate) =>
+        candidate.purchaseOrderItemId === item.purchaseOrderItemId
+    );
 
-    if (
-      !acquisitionItem ||
-      acquisitionItem.purchaseOrderItemId !== item.purchaseOrderItemId
-    ) {
+    if (!acquisitionItem || !allocation) {
       throw new BadRequestException(
         "O recebimento possui um item que nao pertence a aquisicao."
       );
     }
 
-    if (seen.has(item.acquisitionItemId)) {
+    const receiptItemKey = acquisitionReceiptItemKey(
+      item.acquisitionItemId,
+      item.purchaseOrderItemId
+    );
+    if (seen.has(receiptItemKey)) {
       throw new BadRequestException(
-        "O item da aquisicao nao pode se repetir no recebimento."
+        "A destinacao do item nao pode se repetir no recebimento."
       );
     }
-    seen.add(item.acquisitionItemId);
+    seen.add(receiptItemKey);
 
     if (item.receivedQuantity <= 0) {
       throw new BadRequestException(
@@ -57,15 +69,15 @@ export function validateReceipt(
     }
 
     const totalAfterReceipt =
-      (previouslyReceivedByAcquisitionItem.get(item.acquisitionItemId) ??
-        0) + item.receivedQuantity;
+      (previouslyReceivedByAcquisitionItem.get(receiptItemKey) ?? 0) +
+      item.receivedQuantity;
 
     if (
       totalAfterReceipt >
-      acquisitionItem.acquiredQuantity + QUANTITY_TOLERANCE
+      allocation.allocatedQuantity + QUANTITY_TOLERANCE
     ) {
       throw new BadRequestException(
-        "A quantidade recebida nao pode ultrapassar a quantidade comprada."
+        "A quantidade recebida nao pode ultrapassar a quantidade destinada."
       );
     }
   });

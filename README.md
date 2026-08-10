@@ -4,9 +4,9 @@ Backend serverless do Fincheck para gestao operacional de ordens de compra.
 A API atende o Web, autentica usuarios com Cognito e persiste os dados no
 Neon/Postgres via Drizzle.
 
-A branch `codex/purchase-orders-v2` contem o MVP atual: receber uma ordem,
-comprar os itens, registrar chegadas, entregar, faturar e acompanhar o
-recebimento do cliente.
+A branch `codex/purchase-orders-v2` contem o MVP atual: preparar uma cotacao,
+receber uma ordem, comprar os itens, registrar chegadas, entregar, faturar e
+acompanhar o recebimento do cliente.
 
 ## Stack
 
@@ -14,6 +14,7 @@ recebimento do cliente.
 - TypeScript
 - Serverless Framework
 - AWS Lambda e API Gateway HTTP API
+- Amazon S3 para imagens privadas de cotacoes
 - AWS Cognito
 - Neon Postgres
 - Drizzle ORM
@@ -24,12 +25,13 @@ recebimento do cliente.
 - organizacoes PF/PJ e usuario atual
 - clientes
 - catalogo de produtos e precos de referencia
+- cotacoes comerciais, itens, imagens opcionais e exportacao pelo Web
 - ordens de compra e seus itens
 - aquisicoes vinculadas aos itens da ordem
 - recebimentos totais e parciais de mercadoria
 - entregas totais e parciais
 - notas fiscais e pagamentos do cliente
-- painel operacional com pendencias, custos e margens
+- painel operacional com periodo por emissao, pendencias, custos e margens
 
 Contas bancarias, categorias, transacoes genericas, recorrencias, cartoes,
 contatos, impostos mensais e o dashboard financeiro da versao anterior nao
@@ -70,9 +72,10 @@ pnpm db:migrate
 
 ## Publicacao da V2
 
-A migracao `0003_product-catalog.sql` deve ser aplicada antes de publicar a
-API e o Web que exigem `productId` nos itens. Consulte o procedimento seguro
-em [Migracoes de banco](./docs/database-migrations.md).
+A migracao `0008_quotations.sql` deve ser aplicada antes de publicar o modulo
+de cotacoes. O deploy Serverless cria o bucket privado usado pelas imagens.
+Consulte o procedimento seguro em
+[Migracoes de banco](./docs/database-migrations.md).
 
 ## Documentacao
 

@@ -43,10 +43,26 @@ export class UpdatePurchaseOrderUseCase {
 
     const current = currentRecord.order;
     const customerId = input.customerId ?? current.customerId;
-    const customer = await this.customerRepository.findOne({
-      customerId,
-      entityId: input.entityId,
-    });
+    const productIds = input.items
+      ? [...new Set(input.items.map((item) => item.productId))]
+      : [];
+    const orderNumber = input.orderNumber ?? current.orderNumber;
+    const [customer, duplicate, products] = await Promise.all([
+      this.customerRepository.findOne({
+        customerId,
+        entityId: input.entityId,
+      }),
+      this.purchaseOrderRepository.findByOrderNumber({
+        entityId: input.entityId,
+        customerId,
+        orderNumber,
+        exceptPurchaseOrderId: current.id,
+      }),
+      this.productRepository.findMany({
+        entityId: input.entityId,
+        productIds,
+      }),
+    ]);
 
     if (!customer) {
       throw new NotFoundException("Cliente nao encontrado.");
@@ -57,14 +73,6 @@ export class UpdatePurchaseOrderUseCase {
         "Nao e possivel mover a ordem para um cliente inativo."
       );
     }
-
-    const orderNumber = input.orderNumber ?? current.orderNumber;
-    const duplicate = await this.purchaseOrderRepository.findByOrderNumber({
-      entityId: input.entityId,
-      customerId,
-      orderNumber,
-      exceptPurchaseOrderId: current.id,
-    });
 
     if (duplicate) {
       throw new ConflictException(
@@ -79,19 +87,8 @@ export class UpdatePurchaseOrderUseCase {
     }
 
     const customerChanged = customerId !== current.customerId;
-    const products = input.items
-      ? await Promise.all(
-          [...new Set(input.items.map((item) => item.productId))].map(
-            (productId) =>
-              this.productRepository.findOne({
-                entityId: input.entityId,
-                productId,
-              })
-          )
-        )
-      : [];
     const productsById = new Map(
-      products.filter((product) => product !== null).map((product) => [product.id!, product])
+      products.map((product) => [product.id!, product])
     );
 
     if (input.items) {

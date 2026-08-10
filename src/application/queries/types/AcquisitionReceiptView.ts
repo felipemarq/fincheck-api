@@ -54,8 +54,12 @@ export function toAcquisitionReceiptView(
         item.acquisitionItemId
       );
       const orderItem = orderItemsById.get(item.purchaseOrderItemId);
+      const allocation = acquisitionItem?.allocations.find(
+        (candidate) =>
+          candidate.purchaseOrderItemId === item.purchaseOrderItemId
+      );
 
-      if (!acquisitionItem || !orderItem) {
+      if (!acquisitionItem || !orderItem || !allocation) {
         throw new Error(
           `Item ${item.acquisitionItemId} nao encontrado no recebimento.`
         );
@@ -68,7 +72,7 @@ export function toAcquisitionReceiptView(
         lineNumber: orderItem.lineNumber,
         description: orderItem.description,
         originalUnit: orderItem.originalUnit,
-        acquiredQuantity: acquisitionItem.acquiredQuantity,
+        acquiredQuantity: allocation.allocatedQuantity,
         receivedQuantity: item.receivedQuantity,
         notes: item.notes,
       };

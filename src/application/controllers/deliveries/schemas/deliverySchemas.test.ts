@@ -16,12 +16,16 @@ test("cria entrega propria sem custo, destinatario ou rastreio", () => {
     status: "PREPARING",
     recipientName: null,
     trackingCode: null,
+    dispatchedAt: null,
+    deliveredAt: null,
     notes: null,
     items: [validItem],
   });
 
   assert.equal(parsed.freightCost, 0);
   assert.equal(parsed.notes, undefined);
+  assert.equal(parsed.dispatchedAt, undefined);
+  assert.equal(parsed.deliveredAt, undefined);
   assert.equal("recipientName" in parsed, false);
   assert.equal("trackingCode" in parsed, false);
 });

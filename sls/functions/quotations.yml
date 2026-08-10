@@ -1,0 +1,74 @@
+createQuotation:
+  handler: src/main/functions/quotations/createQuotation.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listQuotations:
+  handler: src/main/functions/quotations/listQuotations.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+getQuotation:
+  handler: src/main/functions/quotations/getQuotation.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations/{quotationId}
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateQuotation:
+  handler: src/main/functions/quotations/updateQuotation.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations/{quotationId}
+        method: PUT
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteQuotation:
+  handler: src/main/functions/quotations/deleteQuotation.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations/{quotationId}
+        method: DELETE
+        authorizer:
+          name: CognitoAuthorizer
+
+uploadQuotationImage:
+  handler: src/main/functions/quotations/uploadQuotationImage.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations/{quotationId}/items/{quotationItemId}/images
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteQuotationImage:
+  handler: src/main/functions/quotations/deleteQuotationImage.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/quotations/{quotationId}/images/{imageId}
+        method: DELETE
+        authorizer:
+          name: CognitoAuthorizer

@@ -1,20 +1,17 @@
-import {
-  Acquisition,
-  AcquisitionItem,
-} from "@application/entities/Acquisition";
-import { PurchaseOrder } from "@application/entities/PurchaseOrder";
+import { Acquisition } from "@application/entities/Acquisition";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { NotFoundException } from "@application/errors/http/NotFoundException";
-import {
-  AcquisitionView,
-  toAcquisitionView,
-} from "@application/queries/types/AcquisitionView";
+import { AcquisitionPreparationService } from "@application/services/AcquisitionPreparationService";
+import { AcquisitionViewService } from "@application/services/AcquisitionViewService";
+import { acquisitionUpdateAffectsPayables } from "@application/services/acquisitionUpdatePolicy";
+import { buildPaymentSchedule } from "@application/services/buildPaymentSchedule";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { PaymentConfigurationService } from "@application/services/PaymentConfigurationService";
 import { validateAcquisition } from "@application/services/validateAcquisition";
-import { AcquisitionRepository } from "@infra/database/neon/repositories/AcquisitionRepository";
 import { AcquisitionReceiptRepository } from "@infra/database/neon/repositories/AcquisitionReceiptRepository";
+import { AcquisitionRepository } from "@infra/database/neon/repositories/AcquisitionRepository";
+import { PayableRepository } from "@infra/database/neon/repositories/PayableRepository";
 import { ProductRepository } from "@infra/database/neon/repositories/ProductRepository";
-import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
 @Injectable()
@@ -22,8 +19,11 @@ export class UpdateAcquisitionUseCase {
   constructor(
     private readonly acquisitionRepository: AcquisitionRepository,
     private readonly acquisitionReceiptRepository: AcquisitionReceiptRepository,
-    private readonly purchaseOrderRepository: PurchaseOrderRepository,
     private readonly productRepository: ProductRepository,
+    private readonly payableRepository: PayableRepository,
+    private readonly paymentConfigurationService: PaymentConfigurationService,
+    private readonly acquisitionPreparationService: AcquisitionPreparationService,
+    private readonly acquisitionViewService: AcquisitionViewService,
     private readonly organizationAccessService: OrganizationAccessService
   ) {}
 
@@ -35,66 +35,104 @@ export class UpdateAcquisitionUseCase {
       input.userId
     );
 
-    const purchaseOrderRecord =
-      await this.purchaseOrderRepository.findOne(input);
-
-    if (!purchaseOrderRecord) {
-      throw new NotFoundException("Ordem de compra nao encontrada.");
-    }
-
     const current = await this.acquisitionRepository.findOne(input);
-
     if (!current) {
       throw new NotFoundException("Aquisicao nao encontrada.");
     }
-
     if (current.isCancelled) {
       throw new BadRequestException(
         "Uma aquisicao cancelada nao pode ser alterada."
       );
     }
 
-    if (
-      purchaseOrderRecord.order.lifecycleStatus !==
-      PurchaseOrder.LifecycleStatus.ACTIVE
-    ) {
-      throw new BadRequestException(
-        "Somente ordens ativas aceitam alteracoes operacionais."
-      );
-    }
+    const affectsPayables = acquisitionUpdateAffectsPayables(
+      input,
+      current.paymentMethod
+    );
 
-    const hasReceipts =
-      await this.acquisitionReceiptRepository.hasConfirmedReceipts({
+    if (
+      affectsPayables &&
+      (current.paymentMethod === Acquisition.PaymentMethod.CREDIT_CARD ||
+        current.paymentMethod === Acquisition.PaymentMethod.BOLETO) &&
+      (await this.payableRepository.hasPaidForAcquisition({
         entityId: input.entityId,
         acquisitionId: current.id!,
-      });
-
-    if (
-      hasReceipts &&
-      (input.items !== undefined ||
-        input.status === Acquisition.Status.CANCELLED)
+      }))
     ) {
       throw new BadRequestException(
-        "Uma aquisicao recebida nao pode ter itens alterados ou ser cancelada."
+        "Uma compra com parcela paga nao pode ter valores, pagamento ou itens alterados. Dados descritivos ainda podem ser corrigidos."
       );
     }
 
-    const items = input.items
-      ? input.items.map(
-          (item) =>
-            new AcquisitionItem({
-              ...item,
-              entityId: input.entityId,
-              acquisitionId: current.id,
-            })
-        )
-      : current.items;
+    if (input.items !== undefined || input.status !== undefined) {
+      const hasReceipts =
+        await this.acquisitionReceiptRepository.hasConfirmedReceipts({
+          entityId: input.entityId,
+          acquisitionId: current.id!,
+        });
+      if (hasReceipts) {
+        throw new BadRequestException(
+          "Uma aquisicao recebida nao pode ter itens ou situacao alterados."
+        );
+      }
+    }
+
+    const paymentConfigurationChanged =
+      input.paymentMethod !== undefined ||
+      input.paymentInstrument !== undefined ||
+      input.paymentHolder !== undefined ||
+      input.creditCardId !== undefined ||
+      input.installmentCount !== undefined ||
+      input.firstPaymentDueAt !== undefined;
+
+    const [payment, prepared] = await Promise.all([
+      paymentConfigurationChanged
+        ? this.paymentConfigurationService.normalize({
+            entityId: input.entityId,
+            paymentMethod: input.paymentMethod ?? current.paymentMethod,
+            creditCardId:
+              input.creditCardId === null
+                ? undefined
+                : input.creditCardId ?? current.creditCardId,
+            installmentCount:
+              input.installmentCount ?? current.installmentCount,
+            firstPaymentDueAt:
+              input.firstPaymentDueAt === null
+                ? undefined
+                : input.firstPaymentDueAt ?? current.firstPaymentDueAt,
+            paymentInstrument:
+              input.paymentInstrument === null
+                ? undefined
+                : input.paymentInstrument ?? current.paymentInstrument,
+            paymentHolder:
+              input.paymentHolder === null
+                ? undefined
+                : input.paymentHolder ?? current.paymentHolder,
+          })
+        : Promise.resolve({
+            creditCardId: current.creditCardId,
+            installmentCount: current.installmentCount,
+            firstPaymentDueAt: current.firstPaymentDueAt,
+            paymentInstrument: current.paymentInstrument,
+            paymentHolder: current.paymentHolder,
+          }),
+      input.items
+        ? this.acquisitionPreparationService.prepare({
+            entityId: input.entityId,
+            purchaseOrderId: input.purchaseOrderId,
+            items: input.items,
+          })
+        : Promise.resolve({
+            items: current.items,
+            purchaseOrderId: current.purchaseOrderId,
+          }),
+    ]);
 
     const updatedAcquisition = new Acquisition({
       ...current,
       id: current.id,
       entityId: current.entityId,
-      purchaseOrderId: current.purchaseOrderId,
+      purchaseOrderId: prepared.purchaseOrderId,
       createdByUserId: current.createdByUserId,
       updatedByUserId: input.userId,
       sellerName:
@@ -106,9 +144,7 @@ export class UpdateAcquisitionUseCase {
           ? undefined
           : input.sellerDocument ?? current.sellerDocument,
       channel:
-        input.channel === null
-          ? undefined
-          : input.channel ?? current.channel,
+        input.channel === null ? undefined : input.channel ?? current.channel,
       sellerOrderNumber:
         input.sellerOrderNumber === null
           ? undefined
@@ -116,64 +152,73 @@ export class UpdateAcquisitionUseCase {
       purchasedAt: input.purchasedAt ?? current.purchasedAt,
       buyerName: input.buyerName ?? current.buyerName,
       paymentMethod: input.paymentMethod ?? current.paymentMethod,
-      paymentInstrument:
-        input.paymentInstrument === null
-          ? undefined
-          : input.paymentInstrument ?? current.paymentInstrument,
-      paymentHolder:
-        input.paymentHolder === null
-          ? undefined
-          : input.paymentHolder ?? current.paymentHolder,
+      ...payment,
       shippingCost: input.shippingCost ?? current.shippingCost,
       generalDiscount: input.generalDiscount ?? current.generalDiscount,
       otherExpenses: input.otherExpenses ?? current.otherExpenses,
       status: input.status ?? current.status,
-      notes:
-        input.notes === null ? undefined : input.notes ?? current.notes,
-      items,
+      notes: input.notes === null ? undefined : input.notes ?? current.notes,
+      items: prepared.items,
       createdAt: current.createdAt,
     });
 
-    validateAcquisition(
-      updatedAcquisition,
-      purchaseOrderRecord.order
-    );
+    validateAcquisition(updatedAcquisition);
 
-    const updated =
-      await this.acquisitionRepository.update(updatedAcquisition);
-    if (!updated.isCancelled) {
-      const orderItemsById = new Map(
-        purchaseOrderRecord.order.items.map((item) => [item.id!, item])
-      );
+    const updated = await this.acquisitionRepository.update(
+      updatedAcquisition,
+      { replaceItems: input.items !== undefined }
+    );
+    if (affectsPayables) {
+      await this.payableRepository.replaceForAcquisition({
+        acquisitionId: updated.id!,
+        entityId: updated.entityId,
+        payables: buildPaymentSchedule(updated),
+      });
+    } else if (input.sellerName !== undefined) {
+      await this.payableRepository.updateDescriptionForAcquisition({
+        acquisitionId: updated.id!,
+        entityId: updated.entityId,
+        description: updated.sellerName
+          ? `Compra em ${updated.sellerName}`
+          : "Compra operacional",
+        updatedByUserId: input.userId,
+      });
+    }
+
+    const shouldRecordPurchasePrices =
+      input.items !== undefined ||
+      input.purchasedAt !== undefined ||
+      input.channel !== undefined ||
+      input.sellerName !== undefined;
+    if (!updated.isCancelled && shouldRecordPurchasePrices) {
       await this.productRepository.recordPurchasePrices({
         entityId: input.entityId,
         userId: input.userId,
         purchasedAt: updated.purchasedAt,
         source: updated.channel ?? updated.sellerName,
         items: updated.items.map((item) => ({
-          productId: orderItemsById.get(item.purchaseOrderItemId)!.productId,
+          productId: item.productId,
           unitPrice: item.costUnitPrice,
         })),
       });
     }
-    return toAcquisitionView(updated, purchaseOrderRecord.order.items);
+
+    return (
+      await this.acquisitionViewService.build(
+        [updated],
+        input.purchaseOrderId
+      )
+    )[0];
   }
 }
 
 export namespace UpdateAcquisitionUseCase {
-  export type ItemInput = {
-    id?: string;
-    purchaseOrderItemId: string;
-    acquiredQuantity: number;
-    costUnitPrice: number;
-    lineDiscount?: number;
-    notes?: string;
-  };
+  export type ItemInput = AcquisitionPreparationService.ItemInput;
 
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     acquisitionId: string;
     sellerName?: string | null;
     sellerDocument?: string | null;
@@ -184,6 +229,9 @@ export namespace UpdateAcquisitionUseCase {
     paymentMethod?: string;
     paymentInstrument?: string | null;
     paymentHolder?: string | null;
+    creditCardId?: string | null;
+    installmentCount?: number;
+    firstPaymentDueAt?: Date | null;
     shippingCost?: number;
     generalDiscount?: number;
     otherExpenses?: number;
@@ -192,5 +240,5 @@ export namespace UpdateAcquisitionUseCase {
     items?: ItemInput[];
   };
 
-  export type Output = AcquisitionView;
+  export type Output = import("@application/queries/types/AcquisitionView").AcquisitionView;
 }

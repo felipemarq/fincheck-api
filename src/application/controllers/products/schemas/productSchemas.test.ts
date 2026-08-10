@@ -5,17 +5,20 @@ import { createProductSchema, updateProductSchema } from "./productSchemas";
 
 test("aplica os padroes do catalogo ao criar um produto", () => {
   const product = createProductSchema.parse({
+    code: " erp-001 ",
     name: "Luva cirurgica",
     packaging: "CX",
   });
 
   assert.equal(product.brand, "Outros");
+  assert.equal(product.code, "ERP-001");
   assert.equal(product.normalizedUnit, "UNIT");
   assert.equal(product.lastPurchasePrice, undefined);
 });
 
 test("aceita limpar os precos e campos opcionais na edicao", () => {
   const product = updateProductSchema.parse({
+    code: "",
     specification: null,
     lastPurchasePrice: null,
     lastPurchaseSource: null,
@@ -23,6 +26,7 @@ test("aceita limpar os precos e campos opcionais na edicao", () => {
   });
 
   assert.equal(product.specification, null);
+  assert.equal(product.code, null);
   assert.equal(product.lastPurchasePrice, null);
   assert.equal(product.lastSalePrice, null);
 });

@@ -6,6 +6,10 @@ import {
 } from "@application/controllers/v2Schemas";
 import { OperationsDashboardView } from "@application/queries/types/OperationsDashboardView";
 import { GetOperationsDashboardUseCase } from "@application/useCases/dashboard/GetOperationsDashboardUseCase";
+import {
+  OperationsDashboardQuery,
+  operationsDashboardQuerySchema,
+} from "./schemas/dashboardSchemas";
 
 @Injectable()
 export class GetOperationsDashboardController extends Controller<
@@ -19,9 +23,20 @@ export class GetOperationsDashboardController extends Controller<
   protected override async handle({
     userId,
     params,
-  }: Controller.Request<"private", Record<string, never>, OrganizationParams>) {
+    queryParams,
+  }: Controller.Request<
+    "private",
+    Record<string, never>,
+    OrganizationParams,
+    OperationsDashboardQuery
+  >) {
     const { entityId } = organizationParamsSchema.parse(params);
-    const dashboard = await this.useCase.execute({ entityId, userId });
+    const query = operationsDashboardQuerySchema.parse(queryParams);
+    const dashboard = await this.useCase.execute({
+      ...query,
+      entityId,
+      userId,
+    });
 
     return { statusCode: 200, body: dashboard };
   }

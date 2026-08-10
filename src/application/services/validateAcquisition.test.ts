@@ -3,43 +3,11 @@ import test from "node:test";
 
 import {
   Acquisition,
+  AcquisitionAllocation,
   AcquisitionItem,
 } from "@application/entities/Acquisition";
-import {
-  PurchaseOrder,
-  PurchaseOrderItem,
-} from "@application/entities/PurchaseOrder";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { validateAcquisition } from "./validateAcquisition";
-
-function makeOrder(): PurchaseOrder {
-  return new PurchaseOrder({
-    entityId: "entity-1",
-    customerId: "customer-1",
-    createdByUserId: "user-1",
-    updatedByUserId: "user-1",
-    orderNumber: "OC-1",
-    issuedAt: new Date("2026-07-30T12:00:00.000Z"),
-    officialTotal: 100,
-    lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
-    items: [
-      new PurchaseOrderItem({
-        id: "order-item-1",
-        entityId: "entity-1",
-        purchaseOrderId: "order-1",
-        productId: "product-1",
-        lineNumber: 1,
-        description: "Produto",
-        brand: "Marca",
-        originalUnit: "UN",
-        normalizedUnit: "UNIT",
-        orderedQuantity: 2,
-        saleUnitPrice: 50,
-        officialTotal: 100,
-      }),
-    ],
-  });
-}
 
 function makeAcquisition(
   overrides: Partial<Acquisition.Attributes> = {},
@@ -52,13 +20,20 @@ function makeAcquisition(
     updatedByUserId: "user-1",
     purchasedAt: new Date("2026-07-30T12:00:00.000Z"),
     buyerName: "Felipe",
-    paymentMethod: "Cartao",
+    paymentMethod: Acquisition.PaymentMethod.PIX,
     items: [
       new AcquisitionItem({
         entityId: "entity-1",
-        purchaseOrderItemId: "order-item-1",
+        productId: "product-1",
         acquiredQuantity: 1,
         costUnitPrice: 20,
+        allocations: [
+          new AcquisitionAllocation({
+            entityId: "entity-1",
+            purchaseOrderItemId: "order-item-1",
+            allocatedQuantity: 1,
+          }),
+        ],
         ...itemOverrides,
       }),
     ],
@@ -67,27 +42,29 @@ function makeAcquisition(
 }
 
 test("aceita uma aquisicao consistente com os itens da ordem", () => {
-  assert.doesNotThrow(() =>
-    validateAcquisition(makeAcquisition(), makeOrder())
-  );
+  assert.doesNotThrow(() => validateAcquisition(makeAcquisition()));
 });
 
-test("rejeita item de outra ordem e desconto acima do custo", () => {
+test("rejeita rateio acima da compra e desconto acima do custo", () => {
   assert.throws(
     () =>
       validateAcquisition(
-        makeAcquisition({}, { purchaseOrderItemId: "other-item" }),
-        makeOrder()
+        makeAcquisition({}, {
+          allocations: [
+            new AcquisitionAllocation({
+              entityId: "entity-1",
+              purchaseOrderItemId: "other-item",
+              allocatedQuantity: 2,
+            }),
+          ],
+        })
       ),
     BadRequestException
   );
 
   assert.throws(
     () =>
-      validateAcquisition(
-        makeAcquisition({}, { lineDiscount: 21 }),
-        makeOrder()
-      ),
+      validateAcquisition(makeAcquisition({}, { lineDiscount: 21 })),
     BadRequestException
   );
 });
@@ -96,8 +73,10 @@ test("rejeita identificacao de pagamento com mais de quatro digitos", () => {
   assert.throws(
     () =>
       validateAcquisition(
-        makeAcquisition({ paymentInstrument: "Visa 123456" }),
-        makeOrder()
+        makeAcquisition({
+          paymentMethod: Acquisition.PaymentMethod.DEBIT_CARD,
+          paymentInstrument: "Visa 123456",
+        })
       ),
     BadRequestException
   );

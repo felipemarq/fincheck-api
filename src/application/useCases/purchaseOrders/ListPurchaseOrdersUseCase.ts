@@ -4,6 +4,11 @@ import {
   toPurchaseOrderSummary,
 } from "@application/queries/types/PurchaseOrderView";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { buildInclusiveUtcDateRange } from "@application/services/buildInclusiveUtcDateRange";
+import {
+  matchesPurchaseOrderOperationalStatus,
+  PurchaseOrderOperationalStatus,
+} from "@application/services/purchaseOrderOperationalStatus";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -22,8 +27,31 @@ export class ListPurchaseOrdersUseCase {
       input.userId
     );
 
-    const orders = await this.purchaseOrderRepository.listAll(input);
-    return { orders: orders.map(toPurchaseOrderSummary) };
+    const issuedRange = buildInclusiveUtcDateRange(
+      input.issuedFrom,
+      input.issuedTo
+    );
+    const records = await this.purchaseOrderRepository.listAll({
+      entityId: input.entityId,
+      customerId: input.customerId,
+      lifecycleStatus: input.lifecycleStatus,
+      search: input.search,
+      issuedFrom: issuedRange.dateFrom,
+      issuedBefore: issuedRange.dateBefore,
+    });
+    const operationalStatus = input.operationalStatus;
+    const filteredRecords = operationalStatus
+      ? records.filter(({ order }) =>
+          matchesPurchaseOrderOperationalStatus(order, operationalStatus)
+        )
+      : records;
+    const summaries = filteredRecords.map(toPurchaseOrderSummary);
+
+    return {
+      orders: input.progress
+        ? summaries.filter((order) => order.progress === input.progress)
+        : summaries,
+    };
   }
 }
 
@@ -33,7 +61,11 @@ export namespace ListPurchaseOrdersUseCase {
     userId: string;
     customerId?: string;
     lifecycleStatus?: PurchaseOrder.LifecycleStatus;
+    progress?: PurchaseOrder.Progress;
+    operationalStatus?: PurchaseOrderOperationalStatus;
     search?: string;
+    issuedFrom?: Date;
+    issuedTo?: Date;
   };
 
   export type Output = {

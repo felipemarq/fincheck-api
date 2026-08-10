@@ -54,6 +54,19 @@ export class PurchaseOrderItem {
     return Math.max(this.acquiredQuantity - this.orderedQuantity, 0);
   }
 
+  get costCoveredRevenue(): number {
+    const coveredQuantity = Math.min(
+      this.acquiredQuantity,
+      this.orderedQuantity
+    );
+    const coverage = coveredQuantity / this.orderedQuantity;
+
+    return (
+      Math.round((this.officialTotal * coverage + Number.EPSILON) * 100) /
+      100
+    );
+  }
+
   get receiptPendingQuantity(): number {
     return Math.max(this.acquiredQuantity - this.receivedQuantity, 0);
   }
@@ -286,6 +299,33 @@ export class PurchaseOrder {
     return (
       Math.round(
         (this.officialTotal -
+          this.knownAcquisitionCost -
+          this.deliveryCost -
+          this.taxCost -
+          this.otherDeductions +
+          Number.EPSILON) *
+          100
+      ) / 100
+    );
+  }
+
+  get costCoveredRevenue(): number {
+    return (
+      Math.round(
+        (this.items.reduce(
+          (total, item) => total + item.costCoveredRevenue,
+          0
+        ) +
+          Number.EPSILON) *
+          100
+      ) / 100
+    );
+  }
+
+  get knownCostMargin(): number {
+    return (
+      Math.round(
+        (this.costCoveredRevenue -
           this.knownAcquisitionCost -
           this.deliveryCost -
           this.taxCost -

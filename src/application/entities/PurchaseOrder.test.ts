@@ -173,3 +173,28 @@ test("calcula margens projetada e faturada da ordem", () => {
   assert.equal(order.projectedMargin, 550);
   assert.equal(order.invoicedMargin, 450);
 });
+
+test("calcula a margem somente sobre quantidades com compra registrada", () => {
+  const order = makeOrder({
+    officialTotal: 500,
+    items: [
+      makeItem({
+        orderedQuantity: 10,
+        acquiredQuantity: 5,
+        officialTotal: 200,
+      }),
+      makeItem({
+        lineNumber: 2,
+        orderedQuantity: 2,
+        acquiredQuantity: 3,
+        officialTotal: 300,
+      }),
+    ],
+    knownAcquisitionCost: 180,
+    deliveryCost: 20,
+  });
+
+  assert.equal(order.costCoveredRevenue, 400);
+  assert.equal(order.knownCostMargin, 200);
+  assert.equal(order.projectedMargin, 300);
+});

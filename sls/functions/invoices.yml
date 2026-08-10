@@ -1,5 +1,6 @@
 createInvoice:
   handler: src/main/functions/invoices/createInvoice.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
@@ -9,6 +10,7 @@ createInvoice:
 
 listInvoices:
   handler: src/main/functions/invoices/listInvoices.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
@@ -18,6 +20,7 @@ listInvoices:
 
 updateInvoice:
   handler: src/main/functions/invoices/updateInvoice.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}
@@ -27,6 +30,7 @@ updateInvoice:
 
 createReceivablePayment:
   handler: src/main/functions/invoices/createReceivablePayment.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments
@@ -36,6 +40,7 @@ createReceivablePayment:
 
 updateReceivablePayment:
   handler: src/main/functions/invoices/updateReceivablePayment.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments/{paymentId}

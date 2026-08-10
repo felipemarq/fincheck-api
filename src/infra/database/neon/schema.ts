@@ -15,6 +15,10 @@ export const invoiceStatus = pgEnum("invoice_status", ['DRAFT', 'ISSUED', 'CANCE
 
 export const purchaseOrderLifecycleStatus = pgEnum("purchase_order_lifecycle_status", ['DRAFT', 'ACTIVE', 'CANCELLED'])
 
+export const quotationStatus = pgEnum("quotation_status", ['DRAFT', 'SENT', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'])
+
+export const payableStatus = pgEnum("payable_status", ['OPEN', 'PAID', 'CANCELLED'])
+
 export const receivablePaymentStatus = pgEnum("receivable_payment_status", ['CONFIRMED', 'CANCELLED'])
 
 
@@ -92,10 +96,48 @@ export const receivablePaymentsTable = pgTable("receivable_payments", {
 		}).onDelete("restrict"),
 ]);
 
+export const creditCardsTable = pgTable("credit_cards", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	name: varchar({ length: 120 }).notNull(),
+	holderName: varchar("holder_name", { length: 160 }).notNull(),
+	bank: varchar({ length: 120 }).notNull(),
+	brand: varchar({ length: 40 }).notNull(),
+	lastFour: varchar("last_four", { length: 4 }).notNull(),
+	color: varchar({ length: 7 }).default('#868e96').notNull(),
+	closingDay: integer("closing_day").notNull(),
+	dueDay: integer("due_day").notNull(),
+	creditLimit: numeric("credit_limit", { precision: 16, scale:  2 }),
+	active: boolean().default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("credit_cards_entity_active_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.active.asc().nullsLast().op("bool_ops")),
+	index("credit_cards_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("credit_cards_identity_uq").on(table.entityId, table.bank, table.lastFour),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "credit_cards_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "credit_cards_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "credit_cards_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
 export const acquisitionsTable = pgTable("acquisitions", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
-	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id"),
 	createdByUserId: uuid("created_by_user_id").notNull(),
 	updatedByUserId: uuid("updated_by_user_id").notNull(),
 	sellerName: varchar("seller_name", { length: 160 }),
@@ -107,6 +149,9 @@ export const acquisitionsTable = pgTable("acquisitions", {
 	paymentMethod: varchar("payment_method", { length: 80 }).notNull(),
 	paymentInstrument: varchar("payment_instrument", { length: 120 }),
 	paymentHolder: varchar("payment_holder", { length: 160 }),
+	creditCardId: uuid("credit_card_id"),
+	installmentCount: integer("installment_count").default(1).notNull(),
+	firstPaymentDueAt: timestamp("first_payment_due_at", { withTimezone: true }),
 	shippingCost: numeric("shipping_cost", { precision: 16, scale:  2 }).default('0').notNull(),
 	generalDiscount: numeric("general_discount", { precision: 16, scale:  2 }).default('0').notNull(),
 	otherExpenses: numeric("other_expenses", { precision: 16, scale:  2 }).default('0').notNull(),
@@ -129,6 +174,11 @@ export const acquisitionsTable = pgTable("acquisitions", {
 			name: "acquisitions_purchase_order_id_purchase_orders_id_fk"
 		}).onDelete("restrict"),
 	foreignKey({
+			columns: [table.creditCardId],
+			foreignColumns: [creditCardsTable.id],
+			name: "acquisitions_credit_card_id_credit_cards_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
 			columns: [table.createdByUserId],
 			foreignColumns: [usersTable.id],
 			name: "acquisitions_created_by_user_id_users_id_fk"
@@ -137,6 +187,56 @@ export const acquisitionsTable = pgTable("acquisitions", {
 			columns: [table.updatedByUserId],
 			foreignColumns: [usersTable.id],
 			name: "acquisitions_updated_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const payablesTable = pgTable("payables", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	acquisitionId: uuid("acquisition_id").notNull(),
+	creditCardId: uuid("credit_card_id"),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	description: varchar({ length: 240 }).notNull(),
+	paymentMethod: varchar("payment_method", { length: 80 }).notNull(),
+	installmentNumber: integer("installment_number").default(1).notNull(),
+	installmentCount: integer("installment_count").default(1).notNull(),
+	amount: numeric({ precision: 16, scale:  2 }).notNull(),
+	dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+	status: payableStatus().default('OPEN').notNull(),
+	paidAt: timestamp("paid_at", { withTimezone: true }),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("payables_card_due_idx").using("btree", table.creditCardId.asc().nullsLast().op("uuid_ops"), table.dueAt.asc().nullsLast().op("timestamptz_ops")),
+	index("payables_entity_due_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.dueAt.asc().nullsLast().op("timestamptz_ops")),
+	index("payables_entity_status_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.status.asc().nullsLast().op("enum_ops")),
+	uniqueIndex("payables_acquisition_installment_uq").on(table.acquisitionId, table.installmentNumber),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "payables_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.acquisitionId],
+			foreignColumns: [acquisitionsTable.id],
+			name: "payables_acquisition_id_acquisitions_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.creditCardId],
+			foreignColumns: [creditCardsTable.id],
+			name: "payables_credit_card_id_credit_cards_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdByUserId],
+			foreignColumns: [usersTable.id],
+			name: "payables_created_by_user_id_users_id_fk"
+		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.updatedByUserId],
+			foreignColumns: [usersTable.id],
+			name: "payables_updated_by_user_id_users_id_fk"
 		}).onDelete("restrict"),
 ]);
 
@@ -233,7 +333,7 @@ export const acquisitionReceiptItemsTable = pgTable("acquisition_receipt_items",
 }, (table) => [
 	index("acquisition_receipt_items_acquisition_item_idx").using("btree", table.acquisitionItemId.asc().nullsLast().op("uuid_ops")),
 	index("acquisition_receipt_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
-	uniqueIndex("acquisition_receipt_items_item_uq").using("btree", table.receiptId.asc().nullsLast().op("uuid_ops"), table.acquisitionItemId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("acquisition_receipt_items_item_uq").using("btree", table.receiptId.asc().nullsLast().op("uuid_ops"), table.acquisitionItemId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
 	index("acquisition_receipt_items_receipt_idx").using("btree", table.receiptId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.entityId],
@@ -333,7 +433,7 @@ export const acquisitionItemsTable = pgTable("acquisition_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
 	acquisitionId: uuid("acquisition_id").notNull(),
-	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	productId: uuid("product_id").notNull(),
 	acquiredQuantity: numeric("acquired_quantity", { precision: 14, scale:  3 }).notNull(),
 	costUnitPrice: numeric("cost_unit_price", { precision: 16, scale:  6 }).notNull(),
 	lineDiscount: numeric("line_discount", { precision: 16, scale:  2 }).default('0').notNull(),
@@ -344,8 +444,7 @@ export const acquisitionItemsTable = pgTable("acquisition_items", {
 }, (table) => [
 	index("acquisition_items_acquisition_idx").using("btree", table.acquisitionId.asc().nullsLast().op("uuid_ops")),
 	index("acquisition_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
-	index("acquisition_items_order_item_idx").using("btree", table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
-	uniqueIndex("acquisition_items_order_item_uq").using("btree", table.acquisitionId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_items_product_idx").using("btree", table.productId.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.entityId],
 			foreignColumns: [entitiesTable.id],
@@ -357,9 +456,40 @@ export const acquisitionItemsTable = pgTable("acquisition_items", {
 			name: "acquisition_items_acquisition_id_acquisitions_id_fk"
 		}).onDelete("cascade"),
 	foreignKey({
+			columns: [table.productId],
+			foreignColumns: [productsTable.id],
+			name: "acquisition_items_product_id_products_id_fk"
+		}).onDelete("restrict"),
+]);
+
+export const acquisitionItemAllocationsTable = pgTable("acquisition_item_allocations", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	acquisitionItemId: uuid("acquisition_item_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	allocatedQuantity: numeric("allocated_quantity", { precision: 14, scale:  3 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("acquisition_allocations_acquisition_item_idx").using("btree", table.acquisitionItemId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_allocations_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
+	index("acquisition_allocations_order_item_idx").using("btree", table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("acquisition_allocations_item_order_uq").on(table.acquisitionItemId, table.purchaseOrderItemId),
+	foreignKey({
+			columns: [table.entityId],
+			foreignColumns: [entitiesTable.id],
+			name: "acquisition_item_allocations_entity_id_entities_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.acquisitionItemId],
+			foreignColumns: [acquisitionItemsTable.id],
+			name: "acquisition_item_allocations_acquisition_item_id_items_id_fk"
+		}).onDelete("cascade"),
+	foreignKey({
 			columns: [table.purchaseOrderItemId],
 			foreignColumns: [purchaseOrderItemsTable.id],
-			name: "acquisition_items_purchase_order_item_id_purchase_order_items_i"
+			name: "acquisition_item_allocations_order_item_id_order_items_id_fk"
 		}).onDelete("restrict"),
 ]);
 
@@ -531,6 +661,7 @@ export const productsTable = pgTable("products", {
 	entityId: uuid("entity_id").notNull(),
 	createdByUserId: uuid("created_by_user_id").notNull(),
 	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	code: varchar({ length: 80 }),
 	name: varchar({ length: 240 }).notNull(),
 	brand: varchar({ length: 120 }).default('Outros').notNull(),
 	specification: text(),
@@ -546,6 +677,7 @@ export const productsTable = pgTable("products", {
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
 	index("products_entity_active_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.active.asc().nullsLast().op("bool_ops")),
+	uniqueIndex("products_entity_code_uq").on(table.entityId, table.code),
 	index("products_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("products_identity_uq").using("btree", table.entityId.asc().nullsLast().op("text_ops"), table.name.asc().nullsLast().op("text_ops"), table.brand.asc().nullsLast().op("text_ops"), table.packaging.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
@@ -565,6 +697,136 @@ export const productsTable = pgTable("products", {
 		}).onDelete("restrict"),
 ]);
 
+export const quotationsTable = pgTable("quotations", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	customerId: uuid("customer_id").notNull(),
+	createdByUserId: uuid("created_by_user_id").notNull(),
+	updatedByUserId: uuid("updated_by_user_id").notNull(),
+	number: varchar({ length: 80 }).notNull(),
+	status: quotationStatus().default('DRAFT').notNull(),
+	issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+	validUntil: timestamp("valid_until", { withTimezone: true }),
+	sellerName: varchar("seller_name", { length: 160 }).notNull(),
+	sellerDocument: varchar("seller_document", { length: 40 }),
+	sellerEmail: varchar("seller_email", { length: 254 }),
+	sellerPhone: varchar("seller_phone", { length: 40 }),
+	sellerAddress: text("seller_address"),
+	customerLegalName: varchar("customer_legal_name", { length: 160 }).notNull(),
+	customerTradeName: varchar("customer_trade_name", { length: 160 }),
+	customerDocument: varchar("customer_document", { length: 40 }).notNull(),
+	customerEmail: varchar("customer_email", { length: 254 }),
+	customerPhone: varchar("customer_phone", { length: 40 }),
+	customerAddress: text("customer_address"),
+	paymentTerms: text("payment_terms"),
+	deliveryTerms: text("delivery_terms"),
+	notes: text(),
+	internalNotes: text("internal_notes"),
+	subtotal: numeric({ precision: 16, scale: 2 }).notNull(),
+	freight: numeric({ precision: 16, scale: 2 }).default('0').notNull(),
+	discount: numeric({ precision: 16, scale: 2 }).default('0').notNull(),
+	total: numeric({ precision: 16, scale: 2 }).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("quotations_customer_idx").on(table.customerId),
+	index("quotations_entity_issued_idx").on(table.entityId, table.issuedAt),
+	index("quotations_entity_status_idx").on(table.entityId, table.status),
+	uniqueIndex("quotations_entity_number_uq").on(table.entityId, table.number),
+	foreignKey({
+		columns: [table.entityId],
+		foreignColumns: [entitiesTable.id],
+		name: "quotations_entity_id_entities_id_fk"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.customerId],
+		foreignColumns: [customersTable.id],
+		name: "quotations_customer_id_customers_id_fk"
+	}).onDelete("restrict"),
+	foreignKey({
+		columns: [table.createdByUserId],
+		foreignColumns: [usersTable.id],
+		name: "quotations_created_by_user_id_users_id_fk"
+	}).onDelete("restrict"),
+	foreignKey({
+		columns: [table.updatedByUserId],
+		foreignColumns: [usersTable.id],
+		name: "quotations_updated_by_user_id_users_id_fk"
+	}).onDelete("restrict"),
+]);
+
+export const quotationItemsTable = pgTable("quotation_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	quotationId: uuid("quotation_id").notNull(),
+	productId: uuid("product_id").notNull(),
+	lineNumber: integer("line_number").notNull(),
+	productCode: varchar("product_code", { length: 80 }),
+	description: text().notNull(),
+	brand: varchar({ length: 120 }).notNull(),
+	specification: text(),
+	unit: varchar({ length: 40 }).notNull(),
+	quantity: numeric({ precision: 14, scale: 3 }).notNull(),
+	unitPrice: numeric("unit_price", { precision: 16, scale: 6 }).notNull(),
+	total: numeric({ precision: 16, scale: 2 }).notNull(),
+	notes: text(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("quotation_items_entity_idx").on(table.entityId),
+	uniqueIndex("quotation_items_line_uq").on(table.quotationId, table.lineNumber),
+	index("quotation_items_product_idx").on(table.productId),
+	index("quotation_items_quotation_idx").on(table.quotationId),
+	foreignKey({
+		columns: [table.entityId],
+		foreignColumns: [entitiesTable.id],
+		name: "quotation_items_entity_id_entities_id_fk"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.quotationId],
+		foreignColumns: [quotationsTable.id],
+		name: "quotation_items_quotation_id_quotations_id_fk"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.productId],
+		foreignColumns: [productsTable.id],
+		name: "quotation_items_product_id_products_id_fk"
+	}).onDelete("restrict"),
+]);
+
+export const quotationItemImagesTable = pgTable("quotation_item_images", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	entityId: uuid("entity_id").notNull(),
+	quotationId: uuid("quotation_id").notNull(),
+	quotationItemId: uuid("quotation_item_id").notNull(),
+	storageKey: varchar("storage_key", { length: 500 }).notNull(),
+	fileName: varchar("file_name", { length: 255 }).notNull(),
+	contentType: varchar("content_type", { length: 80 }).notNull(),
+	size: integer().notNull(),
+	sortOrder: integer("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	index("quotation_images_entity_idx").on(table.entityId),
+	index("quotation_images_item_idx").on(table.quotationItemId),
+	index("quotation_images_quotation_idx").on(table.quotationId),
+	uniqueIndex("quotation_images_storage_key_uq").on(table.storageKey),
+	foreignKey({
+		columns: [table.entityId],
+		foreignColumns: [entitiesTable.id],
+		name: "quotation_images_entity_id_entities_id_fk"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.quotationId],
+		foreignColumns: [quotationsTable.id],
+		name: "quotation_images_quotation_id_quotations_id_fk"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.quotationItemId],
+		foreignColumns: [quotationItemsTable.id],
+		name: "quotation_images_item_id_quotation_items_id_fk"
+	}).onDelete("cascade"),
+]);
+
 export type CustomerRow = typeof customersTable.$inferSelect;
 export type NewCustomerRow = typeof customersTable.$inferInsert;
 export type ProductRow = typeof productsTable.$inferSelect;
@@ -577,6 +839,8 @@ export type AcquisitionRow = typeof acquisitionsTable.$inferSelect;
 export type NewAcquisitionRow = typeof acquisitionsTable.$inferInsert;
 export type AcquisitionItemRow = typeof acquisitionItemsTable.$inferSelect;
 export type NewAcquisitionItemRow = typeof acquisitionItemsTable.$inferInsert;
+export type AcquisitionItemAllocationRow = typeof acquisitionItemAllocationsTable.$inferSelect;
+export type NewAcquisitionItemAllocationRow = typeof acquisitionItemAllocationsTable.$inferInsert;
 export type AcquisitionReceiptRow = typeof acquisitionReceiptsTable.$inferSelect;
 export type NewAcquisitionReceiptRow = typeof acquisitionReceiptsTable.$inferInsert;
 export type AcquisitionReceiptItemRow = typeof acquisitionReceiptItemsTable.$inferSelect;
@@ -591,3 +855,13 @@ export type InvoiceItemRow = typeof invoiceItemsTable.$inferSelect;
 export type NewInvoiceItemRow = typeof invoiceItemsTable.$inferInsert;
 export type ReceivablePaymentRow = typeof receivablePaymentsTable.$inferSelect;
 export type NewReceivablePaymentRow = typeof receivablePaymentsTable.$inferInsert;
+export type CreditCardRow = typeof creditCardsTable.$inferSelect;
+export type NewCreditCardRow = typeof creditCardsTable.$inferInsert;
+export type PayableRow = typeof payablesTable.$inferSelect;
+export type NewPayableRow = typeof payablesTable.$inferInsert;
+export type QuotationRow = typeof quotationsTable.$inferSelect;
+export type NewQuotationRow = typeof quotationsTable.$inferInsert;
+export type QuotationItemRow = typeof quotationItemsTable.$inferSelect;
+export type NewQuotationItemRow = typeof quotationItemsTable.$inferInsert;
+export type QuotationItemImageRow = typeof quotationItemImagesTable.$inferSelect;
+export type NewQuotationItemImageRow = typeof quotationItemImagesTable.$inferInsert;

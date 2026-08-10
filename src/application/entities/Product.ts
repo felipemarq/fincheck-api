@@ -3,6 +3,7 @@ export class Product {
   readonly entityId: string;
   readonly createdByUserId: string;
   readonly updatedByUserId: string;
+  readonly code?: string;
   readonly name: string;
   readonly brand: string;
   readonly specification?: string;
@@ -22,6 +23,7 @@ export class Product {
     this.entityId = attributes.entityId;
     this.createdByUserId = attributes.createdByUserId;
     this.updatedByUserId = attributes.updatedByUserId;
+    this.code = attributes.code;
     this.name = attributes.name;
     this.brand = attributes.brand || "Outros";
     this.specification = attributes.specification;
@@ -44,6 +46,7 @@ export namespace Product {
     entityId: string;
     createdByUserId: string;
     updatedByUserId: string;
+    code?: string;
     name: string;
     brand?: string;
     specification?: string;

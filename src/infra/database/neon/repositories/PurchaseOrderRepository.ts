@@ -1,22 +1,36 @@
 import { Customer } from "@application/entities/Customer";
-import { PurchaseOrder } from "@application/entities/PurchaseOrder";
+import {
+  PurchaseOrder,
+  PurchaseOrderItem,
+} from "@application/entities/PurchaseOrder";
+import {
+  PurchaseOrderItemQueuePage,
+  PurchaseOrderItemProcurementStatus,
+} from "@application/queries/types/PurchaseOrderItemQueueView";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { randomUUID } from "node:crypto";
 import {
+  SQL,
   and,
   asc,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
+  lt,
   ne,
   or,
+  sql,
 } from "drizzle-orm";
 
 import { DatabaseService } from "..";
 import { CustomerItem } from "../items/CustomerItem";
 import { PurchaseOrderMapper } from "../items/PurchaseOrderItem";
+import { AcquisitionMapper } from "../items/AcquisitionItem";
+import { calculateAcquisitionAllocationCosts } from "@application/services/calculateAcquisitionAllocationCosts";
 import {
+  acquisitionItemAllocationsTable,
   acquisitionItemsTable,
   acquisitionReceiptItemsTable,
   acquisitionReceiptsTable,
@@ -26,6 +40,7 @@ import {
   deliveryItemsTable,
   invoiceItemsTable,
   invoicesTable,
+  productsTable,
   purchaseOrderItemsTable,
   purchaseOrdersTable,
   receivablePaymentsTable,
@@ -34,6 +49,14 @@ import {
 export type PurchaseOrderWithCustomer = {
   order: PurchaseOrder;
   customer: Customer;
+};
+
+export type PurchaseOrderItemContext = {
+  item: PurchaseOrderItem;
+  purchaseOrderId: string;
+  orderNumber: string;
+  customerName: string;
+  lifecycleStatus: PurchaseOrder.LifecycleStatus;
 };
 
 type PurchaseOrderOperationalData = {
@@ -131,11 +154,15 @@ export class PurchaseOrderRepository {
     customerId,
     lifecycleStatus,
     search,
+    issuedFrom,
+    issuedBefore,
   }: {
     entityId: string;
     customerId?: string;
     lifecycleStatus?: PurchaseOrder.LifecycleStatus;
     search?: string;
+    issuedFrom?: Date;
+    issuedBefore?: Date;
   }): Promise<PurchaseOrderWithCustomer[]> {
     const conditions = [eq(purchaseOrdersTable.entityId, entityId)];
 
@@ -147,6 +174,14 @@ export class PurchaseOrderRepository {
       conditions.push(
         eq(purchaseOrdersTable.lifecycleStatus, lifecycleStatus)
       );
+    }
+
+    if (issuedFrom) {
+      conditions.push(gte(purchaseOrdersTable.issuedAt, issuedFrom));
+    }
+
+    if (issuedBefore) {
+      conditions.push(lt(purchaseOrdersTable.issuedAt, issuedBefore));
     }
 
     if (search) {
@@ -209,6 +244,428 @@ export class PurchaseOrderRepository {
     }));
   }
 
+  async listOperationalItems({
+    entityId,
+    purchaseOrderItemId,
+    search,
+    customerId,
+    status,
+    deadline,
+    sort,
+    page,
+    pageSize,
+  }: {
+    entityId: string;
+    purchaseOrderItemId?: string;
+    search?: string;
+    customerId?: string;
+    status?: PurchaseOrderItemProcurementStatus;
+    deadline?: "OVERDUE" | "NEXT_7_DAYS" | "NO_DATE";
+    sort:
+      | "URGENCY"
+      | "DELIVERY_ASC"
+      | "DELIVERY_DESC"
+      | "NEWEST"
+      | "PRODUCT_ASC"
+      | "ORDER_ASC";
+    page: number;
+    pageSize: number;
+  }): Promise<PurchaseOrderItemQueuePage> {
+    const acquiredTotals = this.databaseService.db
+      .select({
+        purchaseOrderItemId:
+          acquisitionItemAllocationsTable.purchaseOrderItemId,
+        acquiredQuantity:
+          sql<number>`sum(${acquisitionItemAllocationsTable.allocatedQuantity})`.as(
+            "acquired_quantity"
+          ),
+      })
+      .from(acquisitionItemAllocationsTable)
+      .innerJoin(
+        acquisitionItemsTable,
+        and(
+          eq(
+            acquisitionItemsTable.id,
+            acquisitionItemAllocationsTable.acquisitionItemId
+          ),
+          eq(
+            acquisitionItemsTable.entityId,
+            acquisitionItemAllocationsTable.entityId
+          )
+        )
+      )
+      .innerJoin(
+        acquisitionsTable,
+        and(
+          eq(acquisitionsTable.id, acquisitionItemsTable.acquisitionId),
+          eq(acquisitionsTable.entityId, acquisitionItemsTable.entityId),
+          ne(acquisitionsTable.status, "CANCELLED")
+        )
+      )
+      .where(eq(acquisitionItemAllocationsTable.entityId, entityId))
+      .groupBy(acquisitionItemAllocationsTable.purchaseOrderItemId)
+      .as("acquired_totals");
+
+    const receivedTotals = this.databaseService.db
+      .select({
+        purchaseOrderItemId:
+          acquisitionReceiptItemsTable.purchaseOrderItemId,
+        receivedQuantity:
+          sql<number>`sum(${acquisitionReceiptItemsTable.receivedQuantity})`.as(
+            "received_quantity"
+          ),
+      })
+      .from(acquisitionReceiptItemsTable)
+      .innerJoin(
+        acquisitionReceiptsTable,
+        and(
+          eq(
+            acquisitionReceiptsTable.id,
+            acquisitionReceiptItemsTable.receiptId
+          ),
+          eq(
+            acquisitionReceiptsTable.entityId,
+            acquisitionReceiptItemsTable.entityId
+          ),
+          eq(acquisitionReceiptsTable.status, "CONFIRMED")
+        )
+      )
+      .where(eq(acquisitionReceiptItemsTable.entityId, entityId))
+      .groupBy(acquisitionReceiptItemsTable.purchaseOrderItemId)
+      .as("received_totals");
+
+    const acquiredQuantity = sql<number>`coalesce(${acquiredTotals.acquiredQuantity}, 0)`;
+    const receivedQuantity = sql<number>`coalesce(${receivedTotals.receivedQuantity}, 0)`;
+    const procurementStatus = sql<PurchaseOrderItemProcurementStatus>`case
+      when ${receivedQuantity} >= ${purchaseOrderItemsTable.orderedQuantity}
+        then 'RECEIVED'
+      when ${receivedQuantity} > 0
+        then 'PARTIALLY_RECEIVED'
+      when ${acquiredQuantity} >= ${purchaseOrderItemsTable.orderedQuantity}
+        then 'PURCHASED'
+      when ${acquiredQuantity} > 0
+        then 'PARTIALLY_PURCHASED'
+      else 'PENDING_PURCHASE'
+    end`;
+    const isOverdue = sql<boolean>`coalesce(
+      ${purchaseOrdersTable.requestedDeliveryAt} < current_date
+      and ${receivedQuantity} < ${purchaseOrderItemsTable.orderedQuantity},
+      false
+    )`;
+    const baseConditions: SQL[] = [
+      eq(purchaseOrderItemsTable.entityId, entityId),
+      eq(
+        purchaseOrdersTable.lifecycleStatus,
+        PurchaseOrder.LifecycleStatus.ACTIVE
+      ),
+    ];
+
+    if (purchaseOrderItemId) {
+      baseConditions.push(
+        eq(purchaseOrderItemsTable.id, purchaseOrderItemId)
+      );
+    }
+
+    if (customerId) {
+      baseConditions.push(eq(purchaseOrdersTable.customerId, customerId));
+    }
+
+    if (search) {
+      const pattern = `%${search}%`;
+      baseConditions.push(
+        or(
+          ilike(purchaseOrderItemsTable.description, pattern),
+          ilike(purchaseOrderItemsTable.brand, pattern),
+          ilike(productsTable.code, pattern),
+          ilike(purchaseOrdersTable.orderNumber, pattern),
+          ilike(purchaseOrdersTable.externalNumber, pattern),
+          ilike(customersTable.legalName, pattern),
+          ilike(customersTable.tradeName, pattern)
+        )!
+      );
+    }
+
+    if (deadline === "OVERDUE") {
+      baseConditions.push(isOverdue);
+    }
+
+    if (deadline === "NEXT_7_DAYS") {
+      baseConditions.push(sql`
+        ${purchaseOrdersTable.requestedDeliveryAt} >= current_date
+        and ${purchaseOrdersTable.requestedDeliveryAt} < current_date + interval '8 days'
+        and ${receivedQuantity} < ${purchaseOrderItemsTable.orderedQuantity}
+      `);
+    }
+
+    if (deadline === "NO_DATE") {
+      baseConditions.push(
+        sql`${purchaseOrdersTable.requestedDeliveryAt} is null`
+      );
+    }
+
+    const itemConditions = [...baseConditions];
+    if (status) {
+      itemConditions.push(sql`${procurementStatus} = ${status}`);
+    }
+
+    const countStatus = (value: PurchaseOrderItemProcurementStatus) =>
+      sql<number>`count(*) filter (where ${procurementStatus} = ${value})::integer`.mapWith(
+        Number
+      );
+    const matchingItems = status
+      ? countStatus(status)
+      : sql<number>`count(*)::integer`.mapWith(Number);
+
+    const summaryQuery = this.databaseService.db
+      .select({
+        total: sql<number>`count(*)::integer`.mapWith(Number),
+        matchingItems,
+        pendingPurchase: countStatus("PENDING_PURCHASE"),
+        partiallyPurchased: countStatus("PARTIALLY_PURCHASED"),
+        purchased: countStatus("PURCHASED"),
+        partiallyReceived: countStatus("PARTIALLY_RECEIVED"),
+        received: countStatus("RECEIVED"),
+        overdue:
+          sql<number>`count(*) filter (where ${isOverdue})::integer`.mapWith(
+            Number
+          ),
+      })
+      .from(purchaseOrderItemsTable)
+      .innerJoin(
+        purchaseOrdersTable,
+        and(
+          eq(
+            purchaseOrdersTable.id,
+            purchaseOrderItemsTable.purchaseOrderId
+          ),
+          eq(
+            purchaseOrdersTable.entityId,
+            purchaseOrderItemsTable.entityId
+          )
+        )
+      )
+      .innerJoin(
+        customersTable,
+        and(
+          eq(customersTable.id, purchaseOrdersTable.customerId),
+          eq(customersTable.entityId, purchaseOrdersTable.entityId)
+        )
+      )
+      .innerJoin(
+        productsTable,
+        and(
+          eq(productsTable.id, purchaseOrderItemsTable.productId),
+          eq(productsTable.entityId, purchaseOrderItemsTable.entityId)
+        )
+      )
+      .leftJoin(
+        acquiredTotals,
+        eq(
+          acquiredTotals.purchaseOrderItemId,
+          purchaseOrderItemsTable.id
+        )
+      )
+      .leftJoin(
+        receivedTotals,
+        eq(
+          receivedTotals.purchaseOrderItemId,
+          purchaseOrderItemsTable.id
+        )
+      )
+      .where(and(...baseConditions));
+
+    const orderExpressions: SQL[] = (() => {
+      if (sort === "DELIVERY_ASC") {
+        return [
+          sql`${purchaseOrdersTable.requestedDeliveryAt} asc nulls last`,
+          asc(purchaseOrdersTable.issuedAt),
+          asc(purchaseOrderItemsTable.lineNumber),
+        ];
+      }
+
+      if (sort === "DELIVERY_DESC") {
+        return [
+          sql`${purchaseOrdersTable.requestedDeliveryAt} desc nulls last`,
+          desc(purchaseOrdersTable.issuedAt),
+          asc(purchaseOrderItemsTable.lineNumber),
+        ];
+      }
+
+      if (sort === "NEWEST") {
+        return [
+          desc(purchaseOrdersTable.issuedAt),
+          desc(purchaseOrderItemsTable.createdAt),
+        ];
+      }
+
+      if (sort === "PRODUCT_ASC") {
+        return [
+          sql`lower(${purchaseOrderItemsTable.description}) asc`,
+          asc(purchaseOrdersTable.orderNumber),
+        ];
+      }
+
+      if (sort === "ORDER_ASC") {
+        return [
+          asc(purchaseOrdersTable.orderNumber),
+          asc(purchaseOrderItemsTable.lineNumber),
+        ];
+      }
+
+      return [
+        sql`case
+          when ${isOverdue} then 0
+          when ${purchaseOrdersTable.requestedDeliveryAt} is not null then 1
+          else 2
+        end`,
+        sql`${purchaseOrdersTable.requestedDeliveryAt} asc nulls last`,
+        asc(purchaseOrdersTable.issuedAt),
+        asc(purchaseOrderItemsTable.lineNumber),
+      ];
+    })();
+
+    const itemsQuery = this.databaseService.db
+      .select({
+        id: purchaseOrderItemsTable.id,
+        productId: purchaseOrderItemsTable.productId,
+        productCode: productsTable.code,
+        lineNumber: purchaseOrderItemsTable.lineNumber,
+        description: purchaseOrderItemsTable.description,
+        brand: purchaseOrderItemsTable.brand,
+        specification: purchaseOrderItemsTable.specification,
+        originalUnit: purchaseOrderItemsTable.originalUnit,
+        orderedQuantity: sql<number>`${purchaseOrderItemsTable.orderedQuantity}::double precision`.mapWith(
+          Number
+        ),
+        saleUnitPrice: sql<number>`${purchaseOrderItemsTable.saleUnitPrice}::double precision`.mapWith(
+          Number
+        ),
+        officialTotal: sql<number>`${purchaseOrderItemsTable.officialTotal}::double precision`.mapWith(
+          Number
+        ),
+        acquiredQuantity:
+          sql<number>`${acquiredQuantity}::double precision`.mapWith(Number),
+        purchasePendingQuantity:
+          sql<number>`greatest(${purchaseOrderItemsTable.orderedQuantity} - ${acquiredQuantity}, 0)::double precision`.mapWith(
+            Number
+          ),
+        receivedQuantity:
+          sql<number>`${receivedQuantity}::double precision`.mapWith(Number),
+        receiptPendingQuantity:
+          sql<number>`greatest(${acquiredQuantity} - ${receivedQuantity}, 0)::double precision`.mapWith(
+            Number
+          ),
+        procurementStatus,
+        isOverdue,
+        orderId: purchaseOrdersTable.id,
+        orderNumber: purchaseOrdersTable.orderNumber,
+        externalNumber: purchaseOrdersTable.externalNumber,
+        issuedAt: purchaseOrdersTable.issuedAt,
+        requestedDeliveryAt: purchaseOrdersTable.requestedDeliveryAt,
+        customerId: customersTable.id,
+        customerLegalName: customersTable.legalName,
+        customerTradeName: customersTable.tradeName,
+      })
+      .from(purchaseOrderItemsTable)
+      .innerJoin(
+        purchaseOrdersTable,
+        and(
+          eq(
+            purchaseOrdersTable.id,
+            purchaseOrderItemsTable.purchaseOrderId
+          ),
+          eq(
+            purchaseOrdersTable.entityId,
+            purchaseOrderItemsTable.entityId
+          )
+        )
+      )
+      .innerJoin(
+        customersTable,
+        and(
+          eq(customersTable.id, purchaseOrdersTable.customerId),
+          eq(customersTable.entityId, purchaseOrdersTable.entityId)
+        )
+      )
+      .innerJoin(
+        productsTable,
+        and(
+          eq(productsTable.id, purchaseOrderItemsTable.productId),
+          eq(productsTable.entityId, purchaseOrderItemsTable.entityId)
+        )
+      )
+      .leftJoin(
+        acquiredTotals,
+        eq(
+          acquiredTotals.purchaseOrderItemId,
+          purchaseOrderItemsTable.id
+        )
+      )
+      .leftJoin(
+        receivedTotals,
+        eq(
+          receivedTotals.purchaseOrderItemId,
+          purchaseOrderItemsTable.id
+        )
+      )
+      .where(and(...itemConditions))
+      .orderBy(...orderExpressions)
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
+
+    const [[summary], rows] = await Promise.all([summaryQuery, itemsQuery]);
+    const total = summary?.matchingItems ?? 0;
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        productId: row.productId,
+        productCode: row.productCode ?? undefined,
+        lineNumber: row.lineNumber,
+        description: row.description,
+        brand: row.brand,
+        specification: row.specification ?? undefined,
+        originalUnit: row.originalUnit,
+        orderedQuantity: row.orderedQuantity,
+        saleUnitPrice: row.saleUnitPrice,
+        officialTotal: row.officialTotal,
+        acquiredQuantity: row.acquiredQuantity,
+        purchasePendingQuantity: row.purchasePendingQuantity,
+        receivedQuantity: row.receivedQuantity,
+        receiptPendingQuantity: row.receiptPendingQuantity,
+        procurementStatus: row.procurementStatus,
+        isOverdue: row.isOverdue,
+        order: {
+          id: row.orderId,
+          orderNumber: row.orderNumber,
+          externalNumber: row.externalNumber ?? undefined,
+          issuedAt: row.issuedAt,
+          requestedDeliveryAt: row.requestedDeliveryAt ?? undefined,
+        },
+        customer: {
+          id: row.customerId,
+          legalName: row.customerLegalName,
+          tradeName: row.customerTradeName ?? undefined,
+        },
+      })),
+      summary: {
+        total: summary?.total ?? 0,
+        pendingPurchase: summary?.pendingPurchase ?? 0,
+        partiallyPurchased: summary?.partiallyPurchased ?? 0,
+        purchased: summary?.purchased ?? 0,
+        partiallyReceived: summary?.partiallyReceived ?? 0,
+        received: summary?.received ?? 0,
+        overdue: summary?.overdue ?? 0,
+      },
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: total ? Math.ceil(total / pageSize) : 0,
+      },
+    };
+  }
+
   async findOne({
     entityId,
     purchaseOrderId,
@@ -241,18 +698,18 @@ export class PurchaseOrderRepository {
       return null;
     }
 
-    const itemRows = await this.databaseService.db
-      .select()
-      .from(purchaseOrderItemsTable)
-      .where(
-        and(
-          eq(purchaseOrderItemsTable.purchaseOrderId, purchaseOrderId),
-          eq(purchaseOrderItemsTable.entityId, entityId)
+    const [itemRows, operationalData] = await Promise.all([
+      this.databaseService.db
+        .select()
+        .from(purchaseOrderItemsTable)
+        .where(
+          and(
+            eq(purchaseOrderItemsTable.purchaseOrderId, purchaseOrderId),
+            eq(purchaseOrderItemsTable.entityId, entityId)
+          )
         )
-      )
-      .orderBy(asc(purchaseOrderItemsTable.lineNumber));
-    const operationalData = await this.loadOperationalData(entityId, [
-      purchaseOrderId,
+        .orderBy(asc(purchaseOrderItemsTable.lineNumber)),
+      this.loadOperationalData(entityId, [purchaseOrderId]),
     ]);
 
     return {
@@ -303,17 +760,71 @@ export class PurchaseOrderRepository {
     purchaseOrderId: string;
   }): Promise<boolean> {
     const [row] = await this.databaseService.db
-      .select({ id: acquisitionsTable.id })
-      .from(acquisitionsTable)
+      .select({ id: acquisitionItemAllocationsTable.id })
+      .from(acquisitionItemAllocationsTable)
+      .innerJoin(
+        acquisitionItemsTable,
+        eq(
+          acquisitionItemsTable.id,
+          acquisitionItemAllocationsTable.acquisitionItemId
+        )
+      )
+      .innerJoin(
+        purchaseOrderItemsTable,
+        eq(
+          purchaseOrderItemsTable.id,
+          acquisitionItemAllocationsTable.purchaseOrderItemId
+        )
+      )
       .where(
         and(
-          eq(acquisitionsTable.entityId, entityId),
-          eq(acquisitionsTable.purchaseOrderId, purchaseOrderId)
+          eq(acquisitionItemAllocationsTable.entityId, entityId),
+          eq(purchaseOrderItemsTable.purchaseOrderId, purchaseOrderId)
         )
       )
       .limit(1);
 
     return Boolean(row);
+  }
+
+  async findItemContexts({
+    entityId,
+    purchaseOrderItemIds,
+  }: {
+    entityId: string;
+    purchaseOrderItemIds: string[];
+  }): Promise<PurchaseOrderItemContext[]> {
+    if (!purchaseOrderItemIds.length) return [];
+
+    const rows = await this.databaseService.db
+      .select({
+        item: purchaseOrderItemsTable,
+        order: purchaseOrdersTable,
+        customer: customersTable,
+      })
+      .from(purchaseOrderItemsTable)
+      .innerJoin(
+        purchaseOrdersTable,
+        eq(purchaseOrdersTable.id, purchaseOrderItemsTable.purchaseOrderId)
+      )
+      .innerJoin(
+        customersTable,
+        eq(customersTable.id, purchaseOrdersTable.customerId)
+      )
+      .where(
+        and(
+          eq(purchaseOrderItemsTable.entityId, entityId),
+          inArray(purchaseOrderItemsTable.id, purchaseOrderItemIds)
+        )
+      );
+
+    return rows.map(({ item, order, customer }) => ({
+      item: PurchaseOrderMapper.itemFromRow(item),
+      purchaseOrderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: customer.tradeName || customer.legalName,
+      lifecycleStatus: order.lifecycleStatus as PurchaseOrder.LifecycleStatus,
+    }));
   }
 
   private async loadOperationalData(
@@ -345,13 +856,31 @@ export class PurchaseOrderRepository {
     const [acquisitionRows, receiptRows, deliveryRows, invoiceRows] =
       await Promise.all([
         this.databaseService.db
-          .select()
+          .selectDistinct({ acquisition: acquisitionsTable })
           .from(acquisitionsTable)
+          .innerJoin(
+            acquisitionItemsTable,
+            eq(acquisitionItemsTable.acquisitionId, acquisitionsTable.id)
+          )
+          .innerJoin(
+            acquisitionItemAllocationsTable,
+            eq(
+              acquisitionItemAllocationsTable.acquisitionItemId,
+              acquisitionItemsTable.id
+            )
+          )
+          .innerJoin(
+            purchaseOrderItemsTable,
+            eq(
+              purchaseOrderItemsTable.id,
+              acquisitionItemAllocationsTable.purchaseOrderItemId
+            )
+          )
           .where(
             and(
               eq(acquisitionsTable.entityId, entityId),
               inArray(
-                acquisitionsTable.purchaseOrderId,
+                purchaseOrderItemsTable.purchaseOrderId,
                 purchaseOrderIds
               )
             )
@@ -388,10 +917,7 @@ export class PurchaseOrderRepository {
           ),
       ]);
 
-    acquisitionRows.forEach((acquisition) => {
-      const data = result.get(acquisition.purchaseOrderId)!;
-      data.acquisitionCount += 1;
-    });
+    const acquisitions = acquisitionRows.map(({ acquisition }) => acquisition);
     deliveryRows.forEach((delivery) => {
       result.get(delivery.purchaseOrderId)!.deliveryCount += 1;
     });
@@ -399,7 +925,7 @@ export class PurchaseOrderRepository {
       result.get(invoice.purchaseOrderId)!.invoiceCount += 1;
     });
 
-    const activeAcquisitions = acquisitionRows.filter(
+    const activeAcquisitions = acquisitions.filter(
       (acquisition) => acquisition.status !== "CANCELLED"
     );
     const confirmedReceipts = receiptRows.filter(
@@ -422,7 +948,7 @@ export class PurchaseOrderRepository {
       invoiceItemRows,
       paymentRows,
     ] = await Promise.all([
-      activeAcquisitions.length
+      acquisitions.length
         ? this.databaseService.db
             .select()
             .from(acquisitionItemsTable)
@@ -431,7 +957,7 @@ export class PurchaseOrderRepository {
                 eq(acquisitionItemsTable.entityId, entityId),
                 inArray(
                   acquisitionItemsTable.acquisitionId,
-                  activeAcquisitions.map((acquisition) => acquisition.id)
+                  acquisitions.map((acquisition) => acquisition.id)
                 )
               )
             )
@@ -495,9 +1021,37 @@ export class PurchaseOrderRepository {
         : Promise.resolve([]),
     ]);
 
-    const acquisitionById = new Map(
-      activeAcquisitions.map((acquisition) => [acquisition.id, acquisition])
-    );
+    const acquisitionAllocationRows = acquisitionItemRows.length
+      ? await this.databaseService.db
+          .select()
+          .from(acquisitionItemAllocationsTable)
+          .where(
+            and(
+              eq(acquisitionItemAllocationsTable.entityId, entityId),
+              inArray(
+                acquisitionItemAllocationsTable.acquisitionItemId,
+                acquisitionItemRows.map((item) => item.id)
+              )
+            )
+          )
+      : [];
+    const allocatedOrderItemRows = acquisitionAllocationRows.length
+      ? await this.databaseService.db
+          .select()
+          .from(purchaseOrderItemsTable)
+          .where(
+            and(
+              eq(purchaseOrderItemsTable.entityId, entityId),
+              inArray(
+                purchaseOrderItemsTable.id,
+                acquisitionAllocationRows.map(
+                  (allocation) => allocation.purchaseOrderItemId
+                )
+              )
+            )
+          )
+      : [];
+
     const receiptById = new Map(
       confirmedReceipts.map((receipt) => [receipt.id, receipt])
     );
@@ -511,23 +1065,45 @@ export class PurchaseOrderRepository {
       issuedInvoices.map((invoice) => [invoice.id, invoice])
     );
 
-    activeAcquisitions.forEach((acquisition) => {
-      const data = result.get(acquisition.purchaseOrderId)!;
-      data.knownAcquisitionCost +=
-        Number(acquisition.shippingCost) +
-        Number(acquisition.otherExpenses) -
-        Number(acquisition.generalDiscount);
+    const orderItemById = new Map(
+      allocatedOrderItemRows.map((item) => [item.id, item])
+    );
+    const countedAcquisitionsByOrder = new Map<string, Set<string>>();
+
+    acquisitions.forEach((acquisitionRow) => {
+      const itemRows = acquisitionItemRows.filter(
+        (item) => item.acquisitionId === acquisitionRow.id
+      );
+      const domain = AcquisitionMapper.fromRows(
+        acquisitionRow,
+        itemRows,
+        acquisitionAllocationRows
+      );
+      const allocationCosts = calculateAcquisitionAllocationCosts(domain);
+
+      domain.items.forEach((item) => {
+        item.allocations.forEach((allocation) => {
+          const orderItem = orderItemById.get(allocation.purchaseOrderItemId);
+          if (!orderItem || !result.has(orderItem.purchaseOrderId)) return;
+          const data = result.get(orderItem.purchaseOrderId)!;
+          const counted = countedAcquisitionsByOrder.get(orderItem.purchaseOrderId) ?? new Set<string>();
+          counted.add(acquisitionRow.id);
+          countedAcquisitionsByOrder.set(orderItem.purchaseOrderId, counted);
+
+          if (acquisitionRow.status === "CANCELLED") return;
+          data.acquiredQuantityByItemId.set(
+            allocation.purchaseOrderItemId,
+            (data.acquiredQuantityByItemId.get(allocation.purchaseOrderItemId) ?? 0) +
+              allocation.allocatedQuantity
+          );
+          data.knownAcquisitionCost +=
+            allocationCosts.get(allocation)?.totalCost ?? 0;
+        });
+      });
     });
 
-    acquisitionItemRows.forEach((item) => {
-      const acquisition = acquisitionById.get(item.acquisitionId)!;
-      const data = result.get(acquisition.purchaseOrderId)!;
-      data.acquiredQuantityByItemId.set(
-        item.purchaseOrderItemId,
-        (data.acquiredQuantityByItemId.get(item.purchaseOrderItemId) ?? 0) +
-          Number(item.acquiredQuantity)
-      );
-      data.knownAcquisitionCost += Number(item.totalCost);
+    countedAcquisitionsByOrder.forEach((ids, purchaseOrderId) => {
+      result.get(purchaseOrderId)!.acquisitionCount = ids.size;
     });
 
     receiptItemRows.forEach((item) => {

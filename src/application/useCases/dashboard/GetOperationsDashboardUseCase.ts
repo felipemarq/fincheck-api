@@ -2,6 +2,8 @@ import { Invoice } from "@application/entities/Invoice";
 import { PurchaseOrder } from "@application/entities/PurchaseOrder";
 import { OperationsDashboardView } from "@application/queries/types/OperationsDashboardView";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { buildInclusiveUtcDateRange } from "@application/services/buildInclusiveUtcDateRange";
+import { getPurchaseOrderOperationalStatus } from "@application/services/purchaseOrderOperationalStatus";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
@@ -20,14 +22,18 @@ export class GetOperationsDashboardUseCase {
   async execute({
     entityId,
     userId,
+    issuedFrom,
+    issuedTo,
   }: GetOperationsDashboardUseCase.Input): Promise<OperationsDashboardView> {
     await this.organizationAccessService.assertUserAccess(entityId, userId);
 
-    const records = await this.purchaseOrderRepository.listAll({ entityId });
-    const activeRecords = records.filter(
-      ({ order }) =>
-        order.lifecycleStatus === PurchaseOrder.LifecycleStatus.ACTIVE
-    );
+    const issuedRange = buildInclusiveUtcDateRange(issuedFrom, issuedTo);
+    const activeRecords = await this.purchaseOrderRepository.listAll({
+      entityId,
+      lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+      issuedFrom: issuedRange.dateFrom,
+      issuedBefore: issuedRange.dateBefore,
+    });
     const invoicesByOrder = new Map(
       await Promise.all(
         activeRecords.map(async ({ order }) => [
@@ -62,6 +68,8 @@ export class GetOperationsDashboardUseCase {
       receivedRevenue: 0,
       receivableBalance: 0,
       projectedMargin: 0,
+      costCoveredRevenue: 0,
+      knownCostMargin: 0,
       invoicedMargin: 0,
     };
     const receivables = {
@@ -73,6 +81,7 @@ export class GetOperationsDashboardUseCase {
     };
 
     const attentionOrders = activeRecords.map(({ order, customer }) => {
+      const status = getPurchaseOrderOperationalStatus(order, today);
       const pendingPurchaseItems = order.items.filter(
         (item) => item.purchasePendingQuantity > 0
       ).length;
@@ -82,20 +91,12 @@ export class GetOperationsDashboardUseCase {
       const readyForDeliveryItems = order.items.filter(
         (item) => item.availableForDeliveryQuantity > 0
       ).length;
-      const delayed = Boolean(
-        order.requestedDeliveryAt &&
-          order.requestedDeliveryAt.getTime() < today.getTime() &&
-          order.progress !== PurchaseOrder.Progress.DELIVERED
-      );
+      const delayed = status.delayed;
 
-      operational.pendingPurchaseOrders +=
-        pendingPurchaseItems > 0 ? 1 : 0;
-      operational.awaitingReceiptOrders +=
-        awaitingReceiptItems > 0 ? 1 : 0;
-      operational.readyForDeliveryOrders +=
-        readyForDeliveryItems > 0 ? 1 : 0;
-      operational.inDeliveryOrders +=
-        order.progress === PurchaseOrder.Progress.IN_DELIVERY ? 1 : 0;
+      operational.pendingPurchaseOrders += status.pendingPurchase ? 1 : 0;
+      operational.awaitingReceiptOrders += status.awaitingReceipt ? 1 : 0;
+      operational.readyForDeliveryOrders += status.readyForDelivery ? 1 : 0;
+      operational.inDeliveryOrders += status.inDelivery ? 1 : 0;
       operational.delayedOrders += delayed ? 1 : 0;
 
       financial.contractedRevenue += order.officialTotal;
@@ -107,6 +108,8 @@ export class GetOperationsDashboardUseCase {
       financial.receivedRevenue += order.receivedRevenue;
       financial.receivableBalance += order.receivableBalance;
       financial.projectedMargin += order.projectedMargin;
+      financial.costCoveredRevenue += order.costCoveredRevenue;
+      financial.knownCostMargin += order.knownCostMargin;
       financial.invoicedMargin += order.invoicedMargin;
 
       (invoicesByOrder.get(order.id!) ?? []).forEach((invoice) => {
@@ -182,5 +185,7 @@ export namespace GetOperationsDashboardUseCase {
   export type Input = {
     entityId: string;
     userId: string;
+    issuedFrom?: Date;
+    issuedTo?: Date;
   };
 }

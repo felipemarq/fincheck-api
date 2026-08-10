@@ -2,9 +2,8 @@
 
 ## Status deste documento
 
-Este documento define a direcao funcional aprovada para a reformulacao do
-Fincheck. Ele descreve o novo MVP, mas **nao representa funcionalidades ja
-implementadas**.
+Este documento define as regras funcionais atuais do MVP operacional. Os fluxos
+centrais aqui descritos ja possuem implementacao na API e no Web.
 
 As regras foram consolidadas a partir do processo real da empresa e da analise
 visual de tres ordens de compra emitidas por clientes distintos.
@@ -60,8 +59,9 @@ termos:
   no qual nossa empresa comprou um produto.
 - **Ordem de compra:** compromisso comercial emitido pelo cliente.
 - **Item da ordem:** produto ou material solicitado em uma linha da ordem.
-- **Aquisicao:** compra realizada por nossa empresa para atender uma unica ordem
-  de compra.
+- **Pedido ao fornecedor ou aquisicao:** compra real feita em um vendedor. Pode
+  conter produtos destinados a uma ou varias ordens de compra.
+- **Destinacao:** parcela de uma linha comprada reservada para um item de ordem.
 - **Recebimento de mercadoria:** registro da chegada parcial ou total de uma
   aquisicao.
 - **Entrega ao cliente:** envio parcial ou total dos itens ja recebidos.
@@ -102,7 +102,6 @@ Os seguintes recursos ficam explicitamente para etapas posteriores:
 - reaproveitamento automatico de produtos excedentes;
 - integracoes com marketplaces, transportadoras ou ERPs de clientes;
 - conciliacao bancaria e contabilidade completa;
-- fluxo detalhado de contas a pagar das aquisicoes;
 - pagamentos parciais dentro da mesma nota fiscal;
 - devolucoes, avarias e trocas;
 - permissoes avancadas por papel;
@@ -121,10 +120,12 @@ Estas premissas reduzem a complexidade inicial sem impedir evolucoes futuras:
 - Cada item novo de uma ordem deve selecionar um produto ativo do catalogo.
 - O item preserva um snapshot dos dados do produto para que alteracoes futuras
   no catalogo nao modifiquem documentos antigos.
-- Uma aquisicao pertence a exatamente uma ordem de compra.
-- Uma aquisicao pode conter varios itens, desde que todos sejam da mesma ordem.
-- Se uma compra real atender mais de uma ordem, ela devera ser dividida em
-  registros internos separados por ordem.
+- Um pedido ao fornecedor pode atender uma ou varias ordens de compra.
+- Frete, desconto geral, despesas, pagamento e parcelas pertencem ao pedido ao
+  fornecedor e sao registrados uma unica vez.
+- Cada linha comprada referencia um produto e possui zero ou mais destinacoes.
+- O custo compartilhado e rateado proporcionalmente pelo custo das linhas e
+  preserva todos os centavos.
 - Pode ser comprada uma quantidade maior que a solicitada. O excedente sera
   apenas informativo no MVP.
 - Uma ordem pode ter varias entregas e varias notas fiscais.
@@ -140,9 +141,10 @@ flowchart LR
     C --> OC["Ordens de compra"]
     OC --> I["Itens da ordem"]
     P --> I
-    OC --> A["Aquisicoes"]
-    A --> AI["Itens adquiridos"]
-    AI --> I
+    O --> A["Pedidos a fornecedores"]
+    A --> AI["Produtos comprados"]
+    AI --> AD["Destinacoes"]
+    AD --> I
     A --> R["Recebimentos de mercadoria"]
     OC --> E["Entregas ao cliente"]
     E --> I
@@ -228,6 +230,7 @@ Representa um item reutilizavel do catalogo da organizacao.
 
 Dados do MVP:
 
+- codigo do produto, ERP ou SKU, opcional e unico por organizacao;
 - nome;
 - marca, com `Outros` quando nao houver;
 - especificacao, opcional;
@@ -242,6 +245,26 @@ Uma ordem ativa atualiza a referencia de venda. Uma aquisicao nao cancelada
 atualiza a referencia de compra e seu canal, desde que seja o evento mais
 recente conhecido. Produtos usados no historico devem ser inativados, nao
 excluidos.
+
+### 8.4.1 Cotacao comercial
+
+Representa a proposta anterior a uma ordem de compra. Ela referencia cliente e
+produtos existentes, mas preserva snapshots dos dados usados para que uma
+edicao futura no cadastro nao altere uma proposta antiga.
+
+Dados do MVP:
+
+- numero unico por organizacao;
+- emissao, validade e situacao comercial;
+- dados da empresa emitente e do cliente;
+- produtos, quantidades, valores unitarios e totais calculados;
+- frete, desconto, condicoes de pagamento e entrega;
+- observacoes publicas e internas separadas;
+- ate tres imagens opcionais por produto.
+
+As imagens sao privadas, limitadas a JPEG, PNG ou WEBP de 3 MB cada. A cotacao
+pode ser exportada em PDF, mas nao vira ordem automaticamente no MVP porque o
+cliente pode aprovar somente parte dos itens.
 
 ### 8.5 Item da ordem
 
@@ -274,11 +297,12 @@ pequena diferenca em relacao ao valor recalculado pelo sistema.
 
 ### 8.6 Aquisicao
 
-Representa uma compra feita para atender uma ordem.
+Representa um pedido real feito em marketplace, distribuidor ou loja. O mesmo
+pedido pode atender varias ordens e concentra frete e pagamento uma unica vez.
 
 Dados minimos:
 
-- ordem de compra;
+- ordem de origem opcional, mantida para navegacao e compatibilidade;
 - nome e documento do vendedor da aquisicao, quando disponiveis;
 - marketplace ou canal;
 - numero do pedido no vendedor;
@@ -297,6 +321,21 @@ O sistema nunca deve armazenar numero completo do cartao, codigo de seguranca ou
 qualquer credencial de pagamento. Uma identificacao como "Visa final 1234 -
 Felipe" e suficiente.
 
+### 8.7 Cartao de credito operacional
+
+O cartao e uma referencia reutilizavel da organizacao. Guarda nome, titular,
+banco, bandeira, quatro ultimos digitos, cor, dia de fechamento, dia de
+vencimento, limite opcional e situacao. Cartoes inativos permanecem no historico
+e nao podem ser usados em novas compras.
+
+### 8.8 Conta a pagar
+
+Cada aquisicao gera uma ou mais obrigacoes financeiras. Compras no credito
+geram parcelas mensais vinculadas ao cartao; boleto gera uma obrigacao em
+aberto; PIX, debito, transferencia, dinheiro e outros meios imediatos sao
+registrados como pagos no ato. A divisao ocorre em centavos e a soma das
+parcelas deve ser exatamente igual ao custo total da aquisicao.
+
 Situacoes:
 
 - `PLACED`: compra realizada;
@@ -307,22 +346,27 @@ Situacoes:
 
 As situacoes parcial e recebida devem ser derivadas dos recebimentos registrados.
 
-### 8.7 Item adquirido
+### 8.9 Produto comprado e destinacao
 
-Vincula uma linha da aquisicao a um item da ordem.
+O produto comprado representa uma linha do carrinho do fornecedor. A
+destinacao vincula parte da quantidade dessa linha a um item de ordem.
 
 Dados minimos:
 
 - aquisicao;
-- item da ordem;
+- produto do catalogo;
 - quantidade adquirida;
 - preco unitario de custo;
 - desconto da linha;
 - valor total de custo;
 - observacoes.
 
-Um item da ordem pode ser atendido por varias aquisicoes. Uma aquisicao pode
-atender varios itens da mesma ordem.
+- uma ou mais destinacoes opcionais, cada uma com item da ordem e quantidade.
+
+Um item da ordem pode ser atendido por varios pedidos. Uma linha comprada pode
+ser dividida entre varias ordens, desde que todas as destinacoes usem o mesmo
+produto e a soma destinada nao ultrapasse a quantidade comprada. Quantidade sem
+destino permanece pendente de alocacao e nao entra no custo de uma ordem.
 
 ### 8.8 Recebimento de mercadoria
 
@@ -338,7 +382,7 @@ Cabecalho:
 
 Linhas:
 
-- item adquirido;
+- item adquirido e destinacao para a ordem;
 - quantidade recebida.
 
 Uma aquisicao pode ter varios recebimentos.
@@ -480,6 +524,18 @@ O progresso geral da ordem sera derivado pela agregacao de seus itens:
 
 `DRAFT` e `CANCELLED` sempre prevalecem sobre o progresso calculado.
 
+### 9.1 Fila operacional de itens
+
+Os itens de todas as ordens ativas devem poder ser consultados em uma fila
+unificada, sem alterar seu vinculo com a ordem de origem. Essa fila e uma
+projecao operacional, nao uma nova entidade de estoque.
+
+Para compras e recebimentos, a fila usa os estados `PENDING_PURCHASE`,
+`PARTIALLY_PURCHASED`, `PURCHASED`, `PARTIALLY_RECEIVED` e `RECEIVED`. Ela deve
+permitir busca por produto, codigo, ordem e cliente, alem de filtros de prazo,
+cliente, estado e ordenacao por urgencia. Operacoes iniciadas nessa tela devem
+atualizar o mesmo item e os mesmos eventos exibidos no detalhe da ordem.
+
 ## 10. Regras e invariantes
 
 ### 10.1 Isolamento
@@ -503,11 +559,12 @@ O progresso geral da ordem sera derivado pela agregacao de seus itens:
 
 ### 10.3 Aquisicao e recebimento
 
-- Uma aquisicao pertence a exatamente uma ordem.
-- Todos os itens adquiridos devem pertencer a essa mesma ordem.
+- Um pedido ao fornecedor pode atender varias ordens.
+- Uma linha comprada so pode ser destinada a itens do mesmo produto.
+- A soma das destinacoes nao pode superar a quantidade comprada.
 - A quantidade adquirida pode superar a quantidade solicitada.
 - O excedente nao fica automaticamente disponivel para outras ordens.
-- A quantidade recebida nao pode superar a quantidade adquirida.
+- A quantidade recebida em uma ordem nao pode superar a quantidade destinada.
 - Aquisicoes canceladas nao entram nos calculos de quantidade ou custo.
 - Uma aquisicao com recebimentos validos nao pode ser cancelada antes do
   cancelamento desses recebimentos.
@@ -673,6 +730,9 @@ O dashboard deve priorizar:
 
 O MVP sera funcional quando:
 
+- uma cotacao com varios produtos puder ser criada e exportada em PDF;
+- imagens opcionais puderem acompanhar produtos sem aparecerem cortadas;
+- alteracoes futuras no catalogo nao modificarem cotacoes existentes;
 - uma ordem com varios itens puder ser cadastrada manualmente;
 - produtos puderem ser geridos e reutilizados nas ordens;
 - ordens e aquisicoes mantiverem as referencias de ultimo preco atualizadas;
@@ -720,15 +780,14 @@ O MVP sera funcional quando:
 
 - `Entity` representa a organizacao que opera as ordens;
 - clientes e produtos possuem contratos proprios do novo dominio;
-- fontes de pagamento sao snapshots simples da aquisicao e nao contas
-  financeiras completas;
+- fontes de pagamento imediatas permanecem como snapshots; cartoes sao
+  referencias seguras e compras geram contas a pagar operacionais;
 - o dashboard e derivado dos eventos operacionais das ordens.
 
-As rotas e implementacoes de contas, transacoes, recorrencias, categorias,
-cartoes, contatos, impostos mensais e dashboard financeiro foram retiradas do
-runtime do MVP. Depois da confirmacao de que os registros antigos haviam sido
-apagados, a migracao `0004_remove-legacy-finance.sql` retirou tambem as tabelas
-e os enums desse dominio.
+As rotas e implementacoes genericas de contas, transacoes, recorrencias,
+categorias, contatos, impostos mensais e dashboard financeiro foram retiradas
+do runtime. Depois disso, cartoes e contas a pagar foram remodelados do zero,
+restritos as aquisicoes da operacao atual.
 
 ## 17. Pre-requisitos tecnicos
 
@@ -766,6 +825,8 @@ As etapas 1 a 6 estao implementadas na branch `codex/purchase-orders-v2`:
 - entregas parciais e disponibilidade;
 - notas fiscais, pagamentos e margens;
 - dashboard operacional responsivo.
+- cotacoes comerciais com snapshots, imagens privadas e PDF paginado.
 
-Continuam no pos-MVP os anexos de documentos, OCR/importacao de PDF, estoque
-reutilizavel entre ordens, conciliacao bancaria e relatorios avancados.
+Continuam no pos-MVP a conversao parcial de cotacao em ordem, anexos dos demais
+documentos, OCR/importacao de PDF, estoque reutilizavel entre ordens,
+conciliacao bancaria e relatorios avancados.

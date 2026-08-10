@@ -32,10 +32,22 @@ export class CreatePurchaseOrderUseCase {
       input.userId
     );
 
-    const customer = await this.customerRepository.findOne({
-      customerId: input.customerId,
-      entityId: input.entityId,
-    });
+    const productIds = [...new Set(input.items.map((item) => item.productId))];
+    const [customer, duplicate, products] = await Promise.all([
+      this.customerRepository.findOne({
+        customerId: input.customerId,
+        entityId: input.entityId,
+      }),
+      this.purchaseOrderRepository.findByOrderNumber({
+        entityId: input.entityId,
+        customerId: input.customerId,
+        orderNumber: input.orderNumber,
+      }),
+      this.productRepository.findMany({
+        entityId: input.entityId,
+        productIds,
+      }),
+    ]);
 
     if (!customer) {
       throw new NotFoundException("Cliente nao encontrado.");
@@ -47,29 +59,14 @@ export class CreatePurchaseOrderUseCase {
       );
     }
 
-    const duplicate = await this.purchaseOrderRepository.findByOrderNumber({
-      entityId: input.entityId,
-      customerId: input.customerId,
-      orderNumber: input.orderNumber,
-    });
-
     if (duplicate) {
       throw new ConflictException(
         "Ja existe uma ordem com este numero para o cliente."
       );
     }
 
-    const products = await Promise.all(
-      [...new Set(input.items.map((item) => item.productId))].map(
-        (productId) =>
-          this.productRepository.findOne({
-            entityId: input.entityId,
-            productId,
-          })
-      )
-    );
     const productsById = new Map(
-      products.filter((product) => product !== null).map((product) => [product.id!, product])
+      products.map((product) => [product.id!, product])
     );
 
     for (const item of input.items) {

@@ -1,17 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Acquisition, AcquisitionItem } from "./Acquisition";
+import {
+  Acquisition,
+  AcquisitionAllocation,
+  AcquisitionItem,
+} from "./Acquisition";
 
 function makeItem(
   overrides: Partial<AcquisitionItem.Attributes> = {}
 ): AcquisitionItem {
   return new AcquisitionItem({
     entityId: "entity-1",
-    purchaseOrderItemId: "item-1",
+    productId: "product-1",
     acquiredQuantity: 3,
     costUnitPrice: 12.5,
     lineDiscount: 2.5,
+    allocations: [
+      new AcquisitionAllocation({
+        entityId: "entity-1",
+        purchaseOrderItemId: "item-1",
+        allocatedQuantity: 3,
+      }),
+    ],
     ...overrides,
   });
 }

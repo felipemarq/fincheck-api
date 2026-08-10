@@ -1,4 +1,10 @@
 import { PurchaseOrder } from "@application/entities/PurchaseOrder";
+import { purchaseOrderOperationalStatuses } from "@application/services/purchaseOrderOperationalStatus";
+import {
+  purchaseOrderItemDeadlineFilters,
+  purchaseOrderItemProcurementStatuses,
+  purchaseOrderItemSortOptions,
+} from "@application/queries/types/PurchaseOrderItemQueueView";
 import {
   nullableOptionalDate,
   nullableOptionalString,
@@ -97,12 +103,49 @@ export const purchaseOrderParamsSchema = organizationParamsSchema.extend({
   purchaseOrderId: z.string().uuid(),
 });
 
-export const listPurchaseOrdersQuerySchema = z.object({
-  customerId: z.string().uuid().optional(),
-  lifecycleStatus: z
-    .nativeEnum(PurchaseOrder.LifecycleStatus)
-    .optional(),
+export const listPurchaseOrdersQuerySchema = z
+  .object({
+    customerId: z.string().uuid().optional(),
+    lifecycleStatus: z
+      .nativeEnum(PurchaseOrder.LifecycleStatus)
+      .optional(),
+    progress: z.nativeEnum(PurchaseOrder.Progress).optional(),
+    operationalStatus: z.enum(purchaseOrderOperationalStatuses).optional(),
+    search: optionalString(160),
+    issuedFrom: optionalDate,
+    issuedTo: optionalDate,
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.issuedFrom) !== Boolean(value.issuedTo)) {
+      context.addIssue({
+        code: "custom",
+        path: [value.issuedFrom ? "issuedTo" : "issuedFrom"],
+        message: "Informe o inicio e o fim do periodo.",
+      });
+    }
+
+    if (
+      value.issuedFrom &&
+      value.issuedTo &&
+      value.issuedFrom.getTime() > value.issuedTo.getTime()
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["issuedTo"],
+        message: "A data final deve ser igual ou posterior a data inicial.",
+      });
+    }
+  });
+
+export const listPurchaseOrderItemsQuerySchema = z.object({
+  purchaseOrderItemId: z.string().uuid().optional(),
   search: optionalString(160),
+  customerId: z.string().uuid().optional(),
+  status: z.enum(purchaseOrderItemProcurementStatuses).optional(),
+  deadline: z.enum(purchaseOrderItemDeadlineFilters).optional(),
+  sort: z.enum(purchaseOrderItemSortOptions).default("URGENCY"),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(10).max(100).default(20),
 });
 
 export type CreatePurchaseOrderBody = z.infer<
@@ -114,4 +157,7 @@ export type UpdatePurchaseOrderBody = z.infer<
 export type PurchaseOrderParams = z.infer<typeof purchaseOrderParamsSchema>;
 export type ListPurchaseOrdersQuery = z.infer<
   typeof listPurchaseOrdersQuerySchema
+>;
+export type ListPurchaseOrderItemsQuery = z.infer<
+  typeof listPurchaseOrderItemsQuerySchema
 >;

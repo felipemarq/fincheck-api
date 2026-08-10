@@ -36,6 +36,34 @@
       "when": 1785680377918,
       "tag": "0004_remove-legacy-finance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785692312718,
+      "tag": "0005_product-code",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785723741166,
+      "tag": "0006_operational-payables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785766388488,
+      "tag": "0007_supplier-purchase-allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786239467928,
+      "tag": "0008_quotations",
+      "breakpoints": true
     }
   ]
 }

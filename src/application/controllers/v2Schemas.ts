@@ -3,6 +3,10 @@ import { z } from "zod";
 export const optionalString = (max: number) =>
   z.preprocess(
     (value) => {
+      if (value === null) {
+        return undefined;
+      }
+
       if (typeof value !== "string") {
         return value;
       }

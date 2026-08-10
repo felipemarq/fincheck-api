@@ -1,4 +1,5 @@
 import { AcquisitionReceipt } from "@application/entities/AcquisitionReceipt";
+import { acquisitionReceiptItemKey } from "@application/services/validateOperations";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
@@ -6,6 +7,7 @@ import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { DatabaseService } from "..";
 import { AcquisitionReceiptMapper } from "../items/AcquisitionReceiptItem";
 import {
+  acquisitionItemAllocationsTable,
   acquisitionItemsTable,
   acquisitionReceiptItemsTable,
   acquisitionReceiptsTable,
@@ -220,10 +222,13 @@ export class AcquisitionReceiptRepository {
     const totals = new Map<string, number>();
 
     rows.forEach(({ item }) => {
-      totals.set(
+      const key = acquisitionReceiptItemKey(
         item.acquisitionItemId,
-        (totals.get(item.acquisitionItemId) ?? 0) +
-          Number(item.receivedQuantity)
+        item.purchaseOrderItemId
+      );
+      totals.set(
+        key,
+        (totals.get(key) ?? 0) + Number(item.receivedQuantity)
       );
     });
 
@@ -259,9 +264,16 @@ export class AcquisitionReceiptRepository {
     entityId: string;
     acquisitionId: string;
   }): Promise<void> {
-    const acquisitionItemRows = await this.databaseService.db
-      .select()
-      .from(acquisitionItemsTable)
+    const allocationRows = await this.databaseService.db
+      .select({ allocation: acquisitionItemAllocationsTable })
+      .from(acquisitionItemAllocationsTable)
+      .innerJoin(
+        acquisitionItemsTable,
+        eq(
+          acquisitionItemsTable.id,
+          acquisitionItemAllocationsTable.acquisitionItemId
+        )
+      )
       .where(
         and(
           eq(acquisitionItemsTable.entityId, entityId),
@@ -275,8 +287,9 @@ export class AcquisitionReceiptRepository {
         acquisitionId,
       });
 
-    const totalAcquired = acquisitionItemRows.reduce(
-      (total, item) => total + Number(item.acquiredQuantity),
+    const totalAcquired = allocationRows.reduce(
+      (total, { allocation }) =>
+        total + Number(allocation.allocatedQuantity),
       0
     );
     const totalReceived = [...receivedByItem.values()].reduce(

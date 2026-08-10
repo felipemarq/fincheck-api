@@ -7,6 +7,8 @@ export class AppConfig {
 
   readonly db: AppConfig.Database;
 
+  readonly files: AppConfig.Files;
+
   constructor() {
     this.auth = {
       cognito: {
@@ -22,6 +24,10 @@ export class AppConfig {
 
     this.db = {
       url: env.DATABASE_URL,
+    };
+
+    this.files = {
+      quotationImagesBucket: env.QUOTATION_IMAGES_BUCKET,
     };
 
   }
@@ -42,6 +48,10 @@ export namespace AppConfig {
 
   export type Database = {
     url: string;
+  };
+
+  export type Files = {
+    quotationImagesBucket?: string;
   };
 
 }

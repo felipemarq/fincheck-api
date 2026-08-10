@@ -1,5 +1,6 @@
 createAcquisition:
   handler: src/main/functions/acquisitions/createAcquisition.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions
@@ -9,6 +10,7 @@ createAcquisition:
 
 listAcquisitions:
   handler: src/main/functions/acquisitions/listAcquisitions.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions
@@ -18,9 +20,43 @@ listAcquisitions:
 
 updateAcquisition:
   handler: src/main/functions/acquisitions/updateAcquisition.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
+
+createSupplierPurchase:
+  handler: src/main/functions/acquisitions/createSupplierPurchase.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/supplier-purchases
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+listSupplierPurchases:
+  handler: src/main/functions/acquisitions/listSupplierPurchases.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/supplier-purchases
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+updateSupplierPurchase:
+  handler: src/main/functions/acquisitions/updateSupplierPurchase.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/supplier-purchases/{acquisitionId}
         method: PATCH
         authorizer:
           name: CognitoAuthorizer

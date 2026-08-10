@@ -27,16 +27,32 @@ export class UpdateProductUseCase {
     const name = input.name ?? current.name;
     const brand = input.brand ?? current.brand;
     const packaging = input.packaging ?? current.packaging;
-    const duplicate = await this.productRepository.findDuplicate({
-      entityId: input.entityId,
-      name,
-      brand,
-      packaging,
-    });
+    const code =
+      input.code === null ? undefined : input.code ?? current.code;
+    const [duplicate, duplicateCode] = await Promise.all([
+      this.productRepository.findDuplicate({
+        entityId: input.entityId,
+        name,
+        brand,
+        packaging,
+      }),
+      code
+        ? this.productRepository.findByCode({
+            entityId: input.entityId,
+            code,
+          })
+        : Promise.resolve(null),
+    ]);
 
     if (duplicate && duplicate.id !== current.id) {
       throw new ConflictException(
         "Ja existe um produto com este nome, marca e embalagem na organizacao."
+      );
+    }
+
+    if (duplicateCode && duplicateCode.id !== current.id) {
+      throw new ConflictException(
+        "Ja existe um produto com este codigo na organizacao."
       );
     }
 
@@ -45,6 +61,7 @@ export class UpdateProductUseCase {
       new Product({
         ...current,
         id: current.id,
+        code,
         name,
         brand,
         packaging,
@@ -89,6 +106,7 @@ export namespace UpdateProductUseCase {
     productId: string;
     entityId: string;
     userId: string;
+    code?: string | null;
     name?: string;
     brand?: string;
     specification?: string | null;

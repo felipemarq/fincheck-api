@@ -36,10 +36,34 @@ Clientes inativos permanecem no historico e nao recebem novas ordens.
 - `PATCH /entities/{entityId}/products/{productId}`
 - `DELETE /entities/{entityId}/products/{productId}`
 
-A listagem aceita `search` e `active`. O catalogo guarda nome, marca,
-especificacao, embalagem, unidade normalizada e referencias opcionais de
-preco. Ordens atualizam a ultima venda e aquisicoes atualizam a ultima compra.
-Produtos com historico devem ser inativados.
+A listagem aceita `search` e `active`. O catalogo guarda codigo opcional, nome,
+marca, especificacao, embalagem, unidade normalizada e referencias opcionais de
+preco. Quando informado, `code` e unico por organizacao e pode representar o
+codigo ERP ou SKU. Ordens atualizam a ultima venda e aquisicoes atualizam a
+ultima compra. Produtos com historico devem ser inativados.
+
+## Cotacoes
+
+- `POST /entities/{entityId}/quotations`
+- `GET /entities/{entityId}/quotations`
+- `GET /entities/{entityId}/quotations/{quotationId}`
+- `PUT /entities/{entityId}/quotations/{quotationId}`
+- `DELETE /entities/{entityId}/quotations/{quotationId}`
+- `POST /entities/{entityId}/quotations/{quotationId}/items/{quotationItemId}/images`
+- `DELETE /entities/{entityId}/quotations/{quotationId}/images/{imageId}`
+
+A criacao recebe cliente, numero, datas, dados da empresa emitente, condicoes,
+frete, desconto e itens com `productId`, quantidade e valor unitario. O servidor
+valida cliente e produtos ativos, calcula os totais e preserva snapshots do
+cliente, da empresa e do catalogo. O numero e unico por organizacao.
+
+Os estados sao `DRAFT`, `SENT`, `APPROVED`, `REJECTED`, `CANCELLED` e
+`EXPIRED`. A listagem aceita `search`, `customerId` e `status`.
+
+Cada item aceita ate tres imagens JPEG, PNG ou WEBP de no maximo 3 MB. O upload
+recebe `fileName`, `contentType` e `dataBase64`. Os objetos ficam em bucket S3
+privado e o detalhe retorna URLs assinadas por 15 minutos. PDFs sao gerados no
+Web e nao sao persistidos pela API.
 
 ## Ordens de compra
 
@@ -47,27 +71,81 @@ Produtos com historico devem ser inativados.
 - `GET /entities/{entityId}/purchase-orders`
 - `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}`
 - `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}`
+- `GET /entities/{entityId}/purchase-order-items`
 
 Criacao e edicao persistem cabecalho e itens na mesma transacao. Cada item
 referencia um produto e preserva seu snapshot. A listagem aceita `search`,
-`customerId` e `lifecycleStatus`.
+`customerId`, `lifecycleStatus`, `progress`, `operationalStatus`, `issuedFrom`
+e `issuedTo`. As duas datas de emissao usam `YYYY-MM-DD`, devem ser informadas
+em conjunto e sao inclusivas. O filtro de progresso usa a etapa geral calculada
+depois das quantidades de compra, recebimento e entrega. `operationalStatus`
+reproduz os indicadores do painel e aceita `PENDING_PURCHASE`,
+`AWAITING_RECEIPT`, `READY_FOR_DELIVERY`, `IN_DELIVERY` e `DELAYED`.
 
 O detalhe retorna o total oficial, a soma calculada, divergencia, custos,
 quantidades e progresso. Os itens deixam de ser substituiveis depois da
 primeira aquisicao.
+
+A fila de itens retorna somente linhas de ordens ativas e aceita `purchaseOrderItemId`,
+`search`, `customerId`, `status`, `deadline`, `sort`, `page` e `pageSize`. Os estados de
+compras e recebimento sao `PENDING_PURCHASE`, `PARTIALLY_PURCHASED`,
+`PURCHASED`, `PARTIALLY_RECEIVED` e `RECEIVED`. A resposta inclui contadores
+gerais e paginacao, sem exigir que o cliente carregue todas as ordens.
 
 ## Aquisicoes
 
 - `POST /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions`
 - `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions`
 - `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}`
+- `POST /entities/{entityId}/supplier-purchases`
+- `GET /entities/{entityId}/supplier-purchases`
+- `PATCH /entities/{entityId}/supplier-purchases/{acquisitionId}`
 
-Uma aquisicao pertence a uma ordem e pode atender varios itens. Um item pode
-ser atendido por varias aquisicoes. Quantidade excedente e informativa.
+As rotas aninhadas preservam o fluxo rapido dentro de uma ordem. As rotas
+`supplier-purchases` registram o pedido real do fornecedor e aceitam linhas com
+`productId` e `allocations[]`. Cada alocacao informa `purchaseOrderItemId` e
+`allocatedQuantity`, permitindo que um carrinho atenda varias ordens. Frete,
+despesas, desconto, forma de pagamento e parcelas sao gravados uma unica vez.
+
+O retorno inclui os produtos comprados, destinos com ordem e cliente, custos
+rateados por destino e quantidades ainda sem alocacao. A listagem global aceita
+`search` e `status`.
 
 Os estados manuais sao `PLACED`, `IN_TRANSIT` e `CANCELLED`.
 `PARTIALLY_RECEIVED` e `RECEIVED` sao derivados pelas chegadas. A
-identificacao de cartao aceita somente os quatro ultimos digitos.
+forma de pagamento aceita `PIX`, `CREDIT_CARD`, `DEBIT_CARD`, `BOLETO`,
+`BANK_TRANSFER`, `CASH` e `OTHER`. Credito exige `creditCardId`,
+`installmentCount` e `firstPaymentDueAt`; boleto exige o vencimento.
+
+O `PATCH` e parcial e deve receber somente os campos alterados. Dados
+descritivos, como fornecedor, canal, comprador e observacoes, podem ser
+corrigidos mesmo depois de um recebimento ou do pagamento de uma parcela.
+Depois do primeiro recebimento, itens e situacao ficam bloqueados. Se uma
+parcela de cartao ou boleto ja foi paga, valores, configuracao de pagamento e
+itens tambem ficam bloqueados para preservar o historico financeiro. Pedidos
+cancelados sao imutaveis.
+
+## Cartoes e contas a pagar
+
+- `POST /entities/{entityId}/credit-cards`
+- `GET /entities/{entityId}/credit-cards`
+- `PATCH /entities/{entityId}/credit-cards/{creditCardId}`
+- `GET /entities/{entityId}/payables`
+- `PATCH /entities/{entityId}/payables/{payableId}`
+- `POST /entities/{entityId}/payables/card-statements/settle`
+
+Cartoes guardam nome, titular, banco, bandeira, quatro ultimos digitos, cor,
+fechamento, vencimento, limite opcional e situacao. Numero completo e CVV nunca
+fazem parte do contrato.
+
+A aquisicao gera as contas automaticamente. Credito cria de 1 a 36 parcelas
+mensais abertas; boleto cria uma conta aberta; meios imediatos criam um registro
+pago no ato. A listagem aceita `status`, `creditCardId`, `search`, `dueFrom` e
+`dueTo`, retorna indicadores e permite marcar uma conta como paga ou reabri-la.
+O fechamento mensal recebe `creditCardId`, `year`, `month` e `paidAt` opcional.
+Ele marca como pagas somente as parcelas abertas daquele cartao cujo vencimento
+pertence ao mes informado; parcelas pagas, canceladas ou de outros meses nao
+sao alteradas.
 
 ## Recebimentos de mercadoria
 
@@ -75,8 +153,8 @@ identificacao de cartao aceita somente os quatro ultimos digitos.
 - `GET /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts`
 - `PATCH /entities/{entityId}/purchase-orders/{purchaseOrderId}/acquisitions/{acquisitionId}/receipts/{receiptId}`
 
-Uma aquisicao aceita varias chegadas parciais. A soma recebida nao pode superar
-a quantidade comprada. Uma alteracao nao pode invalidar mercadoria ja separada
+Uma aquisicao aceita varias chegadas parciais. A soma recebida por destino nao
+pode superar a quantidade alocada para a ordem. Uma alteracao nao pode invalidar mercadoria ja separada
 para entrega.
 
 ## Entregas
@@ -107,7 +185,10 @@ automaticamente o titulo.
 - `GET /entities/{entityId}/operations-dashboard`
 
 O retorno resume filas de compra, chegada, entrega, faturamento e recebimento,
-alem de atrasos, custos, saldos e margens.
+alem de atrasos, custos, saldos e margens. `issuedFrom` e `issuedTo` filtram as
+ordens pela data de emissao, com inicio e fim inclusivos no formato
+`YYYY-MM-DD`. Sem esses parametros, o endpoint preserva a visao geral de todas
+as ordens ativas.
 
 ## Formato de erro
 
@@ -127,5 +208,5 @@ Erros de validacao seguem o formato:
 }
 ```
 
-Os endpoints financeiros genericos da versao anterior nao sao publicados pelo
-`serverless.yml` atual.
+Os endpoints financeiros genericos da versao anterior continuam fora do
+`serverless.yml`; somente o financeiro vinculado a operacao atual e publicado.

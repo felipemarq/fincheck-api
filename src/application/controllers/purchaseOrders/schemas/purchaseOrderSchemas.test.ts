@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   createPurchaseOrderSchema,
+  listPurchaseOrdersQuerySchema,
+  listPurchaseOrderItemsQuerySchema,
   updatePurchaseOrderSchema,
 } from "./purchaseOrderSchemas";
 
@@ -58,4 +60,52 @@ test("aceita campos opcionais nulos nos itens durante a edicao", () => {
 
   assert.equal(parsed.items?.[0].specification, undefined);
   assert.equal(parsed.items?.[0].notes, undefined);
+});
+
+test("aplica paginacao e ordenacao padrao na fila de itens", () => {
+  const parsed = listPurchaseOrderItemsQuerySchema.parse({});
+
+  assert.equal(parsed.page, 1);
+  assert.equal(parsed.pageSize, 20);
+  assert.equal(parsed.sort, "URGENCY");
+});
+
+test("converte filtros HTTP da fila de itens", () => {
+  const parsed = listPurchaseOrderItemsQuerySchema.parse({
+    status: "PARTIALLY_PURCHASED",
+    deadline: "OVERDUE",
+    sort: "PRODUCT_ASC",
+    page: "2",
+    pageSize: "50",
+  });
+
+  assert.equal(parsed.status, "PARTIALLY_PURCHASED");
+  assert.equal(parsed.deadline, "OVERDUE");
+  assert.equal(parsed.sort, "PRODUCT_ASC");
+  assert.equal(parsed.page, 2);
+  assert.equal(parsed.pageSize, 50);
+});
+
+test("aceita filtros de situacao e progresso das ordens", () => {
+  const parsed = listPurchaseOrdersQuerySchema.parse({
+    lifecycleStatus: "ACTIVE",
+    progress: "PARTIALLY_PURCHASED",
+    operationalStatus: "PENDING_PURCHASE",
+    issuedFrom: "2026-07-11",
+    issuedTo: "2026-08-09",
+  });
+
+  assert.equal(parsed.lifecycleStatus, "ACTIVE");
+  assert.equal(parsed.progress, "PARTIALLY_PURCHASED");
+  assert.equal(parsed.operationalStatus, "PENDING_PURCHASE");
+  assert.equal(parsed.issuedFrom?.toISOString(), "2026-07-11T00:00:00.000Z");
+  assert.equal(parsed.issuedTo?.toISOString(), "2026-08-09T00:00:00.000Z");
+});
+
+test("rejeita filtro de emissao incompleto", () => {
+  const result = listPurchaseOrdersQuerySchema.safeParse({
+    issuedFrom: "2026-07-11",
+  });
+
+  assert.equal(result.success, false);
 });

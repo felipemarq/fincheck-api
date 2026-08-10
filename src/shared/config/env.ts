@@ -9,6 +9,9 @@ const schema = z.object({
   // Database
   DATABASE_URL: z.string().min(1),
 
+  // Files
+  QUOTATION_IMAGES_BUCKET: z.string().min(1).optional(),
+
 });
 
 export const env = schema.parse(process.env);

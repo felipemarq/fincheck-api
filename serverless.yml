@@ -7,9 +7,18 @@ provider:
   name: aws
   region: sa-east-1
   runtime: nodejs22.x
-  memorySize: 128
+  memorySize: 256
   stage: ${opt:stage, 'dev'}
   environment: ${file(./sls/config/env.yml)}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+          Resource: arn:aws:s3:::${self:custom.quotationImagesBucket}/*
   httpApi:
     disableDefaultEndpoint: ${env:DISABLE_DEFAULT_APIGW_ENDPOINT, false}
     authorizers:
@@ -47,6 +56,7 @@ package:
 custom:
   cognito:
     PoolName: ${self:service}-${self:provider.stage}-UserPool
+  quotationImagesBucket: ${self:service}-${self:provider.stage}-${aws:accountId}-quotation-images
 
 build:
   esbuild:
@@ -56,8 +66,11 @@ functions:
   - ${file(./sls/functions/auth.yml)}
   - ${file(./sls/functions/customers.yml)}
   - ${file(./sls/functions/products.yml)}
+  - ${file(./sls/functions/quotations.yml)}
   - ${file(./sls/functions/purchaseOrders.yml)}
   - ${file(./sls/functions/acquisitions.yml)}
+  - ${file(./sls/functions/creditCards.yml)}
+  - ${file(./sls/functions/payables.yml)}
   - ${file(./sls/functions/receipts.yml)}
   - ${file(./sls/functions/deliveries.yml)}
   - ${file(./sls/functions/invoices.yml)}
@@ -68,3 +81,4 @@ functions:
 resources:
   - ${file(./sls/resources/UserPool.yml)}
   - ${file(./sls/resources/APIGWCustomDomain.yml)}
+  - ${file(./sls/resources/QuotationImagesBucket.yml)}

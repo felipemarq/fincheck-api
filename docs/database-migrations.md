@@ -20,6 +20,26 @@ contatos, cartoes, compras parceladas, parcelas, transacoes, recorrencias,
 impostos, idempotencia e auditoria da versao anterior, alem dos tres enums que
 eram usados somente por essas tabelas.
 
+`0005_product-code.sql` adiciona o codigo ERP/SKU opcional ao catalogo e garante
+que um codigo preenchido nao se repita dentro da mesma organizacao.
+
+`0006_operational-payables.sql` cria os cartoes operacionais e as contas a pagar,
+adiciona o enum de situacao das parcelas e vincula cartao, quantidade de
+parcelas e primeiro vencimento as aquisicoes. Nenhuma credencial de pagamento e
+armazenada.
+
+`0007_supplier-purchase-allocations.sql` transforma a aquisicao em pedido ao
+fornecedor. Ela torna a ordem de origem opcional, vincula cada linha ao produto
+e cria `acquisition_item_allocations` para distribuir quantidades entre ordens.
+A migracao converte automaticamente cada vinculo antigo em uma destinacao
+equivalente antes de remover a coluna anterior e amplia a unicidade dos itens
+de recebimento para considerar tambem a ordem de destino.
+
+`0008_quotations.sql` cria `quotations`, `quotation_items` e
+`quotation_item_images`, alem do enum `quotation_status`. Os itens preservam
+snapshots comerciais e as imagens guardam somente metadados e a chave do
+objeto privado no S3.
+
 ## Regra de seguranca
 
 Nao execute a migracao `0000` diretamente sobre o banco legado existente. Como
@@ -58,6 +78,23 @@ Para publicar o catalogo, a ordem obrigatoria e:
 2. Validar que nenhum `purchase_order_items.product_id` ficou nulo.
 3. Publicar a API com os endpoints de produtos.
 4. Publicar o Web com a selecao obrigatoria do catalogo.
+
+Para publicar o financeiro operacional, aplique a `0006` antes do deploy das
+funcoes `creditCards`, `payables` e das aquisicoes atualizadas.
+
+Para publicar pedidos agrupados, aplique a `0007` antes das novas funcoes
+`supplierPurchases`. O SQL deve concluir o backfill de `product_id` e das
+destinacoes antes de tornar o produto obrigatorio.
+
+Para publicar cotacoes:
+
+1. Fazer backup e aplicar `0008_quotations.sql`.
+2. Executar o deploy Serverless para criar o bucket privado e as funcoes.
+3. Validar criacao, detalhe e upload de uma imagem na API.
+4. Publicar o Web com as rotas `/quotations`.
+
+O bucket possui politica de retencao no CloudFormation. Remover a stack nao
+apaga automaticamente as imagens comerciais.
 
 ## Comandos
 

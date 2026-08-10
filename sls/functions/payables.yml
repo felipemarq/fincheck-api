@@ -1,0 +1,28 @@
+listPayables:
+  handler: src/main/functions/payables/listPayables.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/payables
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
+settleCreditCardStatement:
+  handler: src/main/functions/payables/settleCreditCardStatement.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/payables/card-statements/settle
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+
+updatePayable:
+  handler: src/main/functions/payables/updatePayable.handler
+  events:
+    - httpApi:
+        path: /entities/{entityId}/payables/{payableId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer

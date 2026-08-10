@@ -1,5 +1,7 @@
 getOperationsDashboard:
   handler: src/main/functions/dashboard/getOperationsDashboard.handler
+  memorySize: 512
+  timeout: 20
   events:
     - httpApi:
         path: /entities/{entityId}/operations-dashboard

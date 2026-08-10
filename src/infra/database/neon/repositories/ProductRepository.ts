@@ -6,6 +6,7 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   isNull,
   lte,
   or,
@@ -43,6 +44,7 @@ export class ProductRepository {
     if (search) {
       conditions.push(
         or(
+          ilike(productsTable.code, `%${search}%`),
           ilike(productsTable.name, `%${search}%`),
           ilike(productsTable.brand, `%${search}%`),
           ilike(productsTable.specification, `%${search}%`),
@@ -85,6 +87,30 @@ export class ProductRepository {
     return row ? ProductItem.fromRow(row) : null;
   }
 
+  async findMany({
+    productIds,
+    entityId,
+  }: {
+    productIds: string[];
+    entityId: string;
+  }): Promise<Product[]> {
+    if (!productIds.length) {
+      return [];
+    }
+
+    const rows = await this.databaseService.db
+      .select()
+      .from(productsTable)
+      .where(
+        and(
+          eq(productsTable.entityId, entityId),
+          inArray(productsTable.id, productIds)
+        )
+      );
+
+    return rows.map(ProductItem.fromRow);
+  }
+
   async findDuplicate({
     entityId,
     name,
@@ -107,6 +133,27 @@ export class ProductRepository {
           sql`lower(trim(${productsTable.packaging})) = ${packaging
             .trim()
             .toLowerCase()}`
+        )
+      )
+      .limit(1);
+
+    return row ? ProductItem.fromRow(row) : null;
+  }
+
+  async findByCode({
+    entityId,
+    code,
+  }: {
+    entityId: string;
+    code: string;
+  }): Promise<Product | null> {
+    const [row] = await this.databaseService.db
+      .select()
+      .from(productsTable)
+      .where(
+        and(
+          eq(productsTable.entityId, entityId),
+          sql`upper(trim(${productsTable.code})) = ${code.trim().toUpperCase()}`
         )
       )
       .limit(1);

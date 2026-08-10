@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Acquisition, AcquisitionItem } from "@application/entities/Acquisition";
+import {
+  Acquisition,
+  AcquisitionAllocation,
+  AcquisitionItem,
+} from "@application/entities/Acquisition";
 import {
   AcquisitionReceipt,
   AcquisitionReceiptItem,
@@ -54,9 +58,17 @@ const acquisitionItem = new AcquisitionItem({
   id: "acquisition-item-1",
   entityId: "entity-1",
   acquisitionId: "acquisition-1",
-  purchaseOrderItemId: "order-item-1",
+  productId: "product-1",
   acquiredQuantity: 5,
   costUnitPrice: 10,
+  allocations: [
+    new AcquisitionAllocation({
+      entityId: "entity-1",
+      acquisitionItemId: "acquisition-item-1",
+      purchaseOrderItemId: "order-item-1",
+      allocatedQuantity: 5,
+    }),
+  ],
 });
 
 const acquisition = new Acquisition({
@@ -94,7 +106,7 @@ test("rejeita recebimento acima da quantidade comprada", () => {
       validateReceipt(
         receipt,
         acquisition,
-        new Map([["acquisition-item-1", 3]])
+        new Map([["acquisition-item-1:order-item-1", 3]])
       ),
     BadRequestException
   );

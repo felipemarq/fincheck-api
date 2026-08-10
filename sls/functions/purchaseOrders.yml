@@ -1,5 +1,7 @@
 createPurchaseOrder:
   handler: src/main/functions/purchaseOrders/createPurchaseOrder.handler
+  memorySize: 512
+  timeout: 20
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders
@@ -9,6 +11,7 @@ createPurchaseOrder:
 
 listPurchaseOrders:
   handler: src/main/functions/purchaseOrders/listPurchaseOrders.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders
@@ -16,8 +19,20 @@ listPurchaseOrders:
         authorizer:
           name: CognitoAuthorizer
 
+listPurchaseOrderItems:
+  handler: src/main/functions/purchaseOrders/listPurchaseOrderItems.handler
+  memorySize: 512
+  timeout: 15
+  events:
+    - httpApi:
+        path: /entities/{entityId}/purchase-order-items
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
 getPurchaseOrder:
   handler: src/main/functions/purchaseOrders/getPurchaseOrder.handler
+  memorySize: 512
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}
@@ -27,6 +42,8 @@ getPurchaseOrder:
 
 updatePurchaseOrder:
   handler: src/main/functions/purchaseOrders/updatePurchaseOrder.handler
+  memorySize: 512
+  timeout: 20
   events:
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}

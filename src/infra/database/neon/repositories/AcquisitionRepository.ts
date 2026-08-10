@@ -1,11 +1,24 @@
 import { Acquisition } from "@application/entities/Acquisition";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+} from "drizzle-orm";
 
 import { DatabaseService } from "..";
 import { AcquisitionMapper } from "../items/AcquisitionItem";
-import { acquisitionItemsTable, acquisitionsTable } from "../schema";
+import {
+  acquisitionItemAllocationsTable,
+  acquisitionItemsTable,
+  acquisitionsTable,
+  purchaseOrderItemsTable,
+} from "../schema";
 
 @Injectable()
 export class AcquisitionRepository {
@@ -13,46 +26,81 @@ export class AcquisitionRepository {
 
   async create(acquisition: Acquisition): Promise<Acquisition> {
     const acquisitionId = acquisition.id ?? randomUUID();
+    const items = acquisition.items.map((item) => ({
+      item,
+      id: item.id ?? randomUUID(),
+    }));
+    const allocationRows = items.flatMap(({ item, id }) =>
+      item.allocations.map((allocation) => ({
+        ...AcquisitionMapper.allocationToRow(allocation, id),
+        id: allocation.id ?? randomUUID(),
+      }))
+    );
+    const insertAcquisition = this.databaseService.db
+      .insert(acquisitionsTable)
+      .values({ ...AcquisitionMapper.toRow(acquisition), id: acquisitionId });
+    const insertItems = this.databaseService.db
+      .insert(acquisitionItemsTable)
+      .values(
+        items.map(({ item, id }) => ({
+          ...AcquisitionMapper.itemToRow(item, acquisitionId),
+          id,
+        }))
+      );
 
-    await this.databaseService.db.batch([
-      this.databaseService.db.insert(acquisitionsTable).values({
-        ...AcquisitionMapper.toRow(acquisition),
-        id: acquisitionId,
-      }),
-      this.databaseService.db.insert(acquisitionItemsTable).values(
-        acquisition.items.map((item) =>
-          AcquisitionMapper.itemToRow(item, acquisitionId)
-        )
-      ),
-    ]);
+    if (allocationRows.length) {
+      await this.databaseService.db.batch([
+        insertAcquisition,
+        insertItems,
+        this.databaseService.db
+          .insert(acquisitionItemAllocationsTable)
+          .values(allocationRows),
+      ]);
+    } else {
+      await this.databaseService.db.batch([insertAcquisition, insertItems]);
+    }
 
     return (await this.findOne({
       entityId: acquisition.entityId,
-      purchaseOrderId: acquisition.purchaseOrderId,
       acquisitionId,
     }))!;
   }
 
-  async update(acquisition: Acquisition): Promise<Acquisition> {
+  async update(
+    acquisition: Acquisition,
+    { replaceItems }: { replaceItems: boolean }
+  ): Promise<Acquisition> {
     const { id: _id, ...values } = AcquisitionMapper.toRow(acquisition);
+    const updateAcquisition = this.databaseService.db
+      .update(acquisitionsTable)
+      .set({ ...values, updatedAt: new Date() })
+      .where(
+        and(
+          eq(acquisitionsTable.id, acquisition.id!),
+          eq(acquisitionsTable.entityId, acquisition.entityId)
+        )
+      );
 
-    await this.databaseService.db.batch([
-      this.databaseService.db
-        .update(acquisitionsTable)
-        .set({
-          ...values,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(acquisitionsTable.id, acquisition.id!),
-            eq(acquisitionsTable.entityId, acquisition.entityId),
-            eq(
-              acquisitionsTable.purchaseOrderId,
-              acquisition.purchaseOrderId
-            )
-          )
-        ),
+    if (!replaceItems) {
+      await updateAcquisition;
+      return (await this.findOne({
+        entityId: acquisition.entityId,
+        acquisitionId: acquisition.id!,
+      }))!;
+    }
+
+    const items = acquisition.items.map((item) => ({
+      item,
+      id: item.id ?? randomUUID(),
+    }));
+    const allocationRows = items.flatMap(({ item, id }) =>
+      item.allocations.map((allocation) => ({
+        ...AcquisitionMapper.allocationToRow(allocation, id),
+        id: allocation.id ?? randomUUID(),
+      }))
+    );
+    const operations = [
+      updateAcquisition,
       this.databaseService.db
         .delete(acquisitionItemsTable)
         .where(
@@ -62,15 +110,26 @@ export class AcquisitionRepository {
           )
         ),
       this.databaseService.db.insert(acquisitionItemsTable).values(
-        acquisition.items.map((item) =>
-          AcquisitionMapper.itemToRow(item, acquisition.id!)
-        )
+        items.map(({ item, id }) => ({
+          ...AcquisitionMapper.itemToRow(item, acquisition.id!),
+          id,
+        }))
       ),
-    ]);
+    ] as const;
+
+    if (allocationRows.length) {
+      await this.databaseService.db.batch([
+        ...operations,
+        this.databaseService.db
+          .insert(acquisitionItemAllocationsTable)
+          .values(allocationRows),
+      ]);
+    } else {
+      await this.databaseService.db.batch(operations);
+    }
 
     return (await this.findOne({
       entityId: acquisition.entityId,
-      purchaseOrderId: acquisition.purchaseOrderId,
       acquisitionId: acquisition.id!,
     }))!;
   }
@@ -78,28 +137,127 @@ export class AcquisitionRepository {
   async listAll({
     entityId,
     purchaseOrderId,
+    search,
+    status,
   }: {
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
+    search?: string;
+    status?: Acquisition.Status;
   }): Promise<Acquisition[]> {
-    const rows = await this.databaseService.db
+    const conditions = [eq(acquisitionsTable.entityId, entityId)];
+    if (status) conditions.push(eq(acquisitionsTable.status, status));
+    if (search) {
+      conditions.push(
+        or(
+          ilike(acquisitionsTable.sellerName, `%${search}%`),
+          ilike(acquisitionsTable.channel, `%${search}%`),
+          ilike(acquisitionsTable.sellerOrderNumber, `%${search}%`)
+        )!
+      );
+    }
+
+    const rows = purchaseOrderId
+      ? await this.databaseService.db
+          .selectDistinct({ acquisition: acquisitionsTable })
+          .from(acquisitionsTable)
+          .innerJoin(
+            acquisitionItemsTable,
+            eq(acquisitionItemsTable.acquisitionId, acquisitionsTable.id)
+          )
+          .innerJoin(
+            acquisitionItemAllocationsTable,
+            eq(
+              acquisitionItemAllocationsTable.acquisitionItemId,
+              acquisitionItemsTable.id
+            )
+          )
+          .innerJoin(
+            purchaseOrderItemsTable,
+            eq(
+              purchaseOrderItemsTable.id,
+              acquisitionItemAllocationsTable.purchaseOrderItemId
+            )
+          )
+          .where(
+            and(
+              ...conditions,
+              eq(purchaseOrderItemsTable.purchaseOrderId, purchaseOrderId)
+            )
+          )
+          .orderBy(
+            desc(acquisitionsTable.purchasedAt),
+            desc(acquisitionsTable.createdAt)
+          )
+      : await this.databaseService.db
+          .select({ acquisition: acquisitionsTable })
+          .from(acquisitionsTable)
+          .where(and(...conditions))
+          .orderBy(
+            desc(acquisitionsTable.purchasedAt),
+            desc(acquisitionsTable.createdAt)
+          );
+
+    return this.hydrate(
+      rows.map(({ acquisition }) => acquisition),
+      entityId
+    );
+  }
+
+  async findOne({
+    entityId,
+    acquisitionId,
+    purchaseOrderId,
+  }: {
+    entityId: string;
+    acquisitionId: string;
+    purchaseOrderId?: string;
+  }): Promise<Acquisition | null> {
+    const [row] = await this.databaseService.db
       .select()
       .from(acquisitionsTable)
       .where(
         and(
-          eq(acquisitionsTable.entityId, entityId),
-          eq(acquisitionsTable.purchaseOrderId, purchaseOrderId)
+          eq(acquisitionsTable.id, acquisitionId),
+          eq(acquisitionsTable.entityId, entityId)
         )
       )
-      .orderBy(
-        desc(acquisitionsTable.purchasedAt),
-        desc(acquisitionsTable.createdAt)
-      );
+      .limit(1);
+    if (!row) return null;
 
-    if (!rows.length) {
-      return [];
+    if (purchaseOrderId) {
+      const [allocation] = await this.databaseService.db
+        .select({ id: acquisitionItemAllocationsTable.id })
+        .from(acquisitionItemAllocationsTable)
+        .innerJoin(
+          acquisitionItemsTable,
+          eq(
+            acquisitionItemsTable.id,
+            acquisitionItemAllocationsTable.acquisitionItemId
+          )
+        )
+        .innerJoin(
+          purchaseOrderItemsTable,
+          eq(
+            purchaseOrderItemsTable.id,
+            acquisitionItemAllocationsTable.purchaseOrderItemId
+          )
+        )
+        .where(
+          and(
+            eq(acquisitionItemsTable.acquisitionId, acquisitionId),
+            eq(purchaseOrderItemsTable.purchaseOrderId, purchaseOrderId)
+          )
+        )
+        .limit(1);
+      if (!allocation) return null;
     }
 
+    return (await this.hydrate([row], entityId))[0] ?? null;
+  }
+
+  private async hydrate(rows: typeof acquisitionsTable.$inferSelect[], entityId: string) {
+    if (!rows.length) return [];
     const acquisitionIds = rows.map((row) => row.id);
     const itemRows = await this.databaseService.db
       .select()
@@ -111,51 +269,28 @@ export class AcquisitionRepository {
         )
       )
       .orderBy(asc(acquisitionItemsTable.createdAt));
+    const allocationRows = itemRows.length
+      ? await this.databaseService.db
+          .select()
+          .from(acquisitionItemAllocationsTable)
+          .where(
+            and(
+              eq(acquisitionItemAllocationsTable.entityId, entityId),
+              inArray(
+                acquisitionItemAllocationsTable.acquisitionItemId,
+                itemRows.map((item) => item.id)
+              )
+            )
+          )
+          .orderBy(asc(acquisitionItemAllocationsTable.createdAt))
+      : [];
 
     return rows.map((row) =>
       AcquisitionMapper.fromRows(
         row,
-        itemRows.filter((item) => item.acquisitionId === row.id)
+        itemRows.filter((item) => item.acquisitionId === row.id),
+        allocationRows
       )
     );
-  }
-
-  async findOne({
-    entityId,
-    purchaseOrderId,
-    acquisitionId,
-  }: {
-    entityId: string;
-    purchaseOrderId: string;
-    acquisitionId: string;
-  }): Promise<Acquisition | null> {
-    const [row] = await this.databaseService.db
-      .select()
-      .from(acquisitionsTable)
-      .where(
-        and(
-          eq(acquisitionsTable.id, acquisitionId),
-          eq(acquisitionsTable.entityId, entityId),
-          eq(acquisitionsTable.purchaseOrderId, purchaseOrderId)
-        )
-      )
-      .limit(1);
-
-    if (!row) {
-      return null;
-    }
-
-    const itemRows = await this.databaseService.db
-      .select()
-      .from(acquisitionItemsTable)
-      .where(
-        and(
-          eq(acquisitionItemsTable.acquisitionId, acquisitionId),
-          eq(acquisitionItemsTable.entityId, entityId)
-        )
-      )
-      .orderBy(asc(acquisitionItemsTable.createdAt));
-
-    return AcquisitionMapper.fromRows(row, itemRows);
   }
 }

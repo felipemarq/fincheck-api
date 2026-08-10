@@ -3,6 +3,7 @@ import { purchaseOrderParamsSchema } from "@application/controllers/purchaseOrde
 import {
   nullableOptionalDate,
   nullableOptionalString,
+  optionalDate,
   optionalString,
 } from "@application/controllers/v2Schemas";
 import { z } from "zod";
@@ -24,8 +25,8 @@ const deliveryItemsSchema = z
 
 export const createDeliverySchema = z.object({
   status: z.nativeEnum(Delivery.Status).optional(),
-  dispatchedAt: z.coerce.date().optional(),
-  deliveredAt: z.coerce.date().optional(),
+  dispatchedAt: optionalDate,
+  deliveredAt: optionalDate,
   freightCost: moneySchema.optional().default(0),
   notes: nullableCreateString(8000),
   items: deliveryItemsSchema,

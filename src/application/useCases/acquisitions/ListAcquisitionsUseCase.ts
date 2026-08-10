@@ -1,8 +1,7 @@
+import { Acquisition } from "@application/entities/Acquisition";
 import { NotFoundException } from "@application/errors/http/NotFoundException";
-import {
-  AcquisitionView,
-  toAcquisitionView,
-} from "@application/queries/types/AcquisitionView";
+import { AcquisitionView } from "@application/queries/types/AcquisitionView";
+import { AcquisitionViewService } from "@application/services/AcquisitionViewService";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
 import { AcquisitionRepository } from "@infra/database/neon/repositories/AcquisitionRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
@@ -13,6 +12,7 @@ export class ListAcquisitionsUseCase {
   constructor(
     private readonly acquisitionRepository: AcquisitionRepository,
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
+    private readonly acquisitionViewService: AcquisitionViewService,
     private readonly organizationAccessService: OrganizationAccessService
   ) {}
 
@@ -24,18 +24,22 @@ export class ListAcquisitionsUseCase {
       input.userId
     );
 
-    const purchaseOrderRecord =
-      await this.purchaseOrderRepository.findOne(input);
-
-    if (!purchaseOrderRecord) {
-      throw new NotFoundException("Ordem de compra nao encontrada.");
+    if (input.purchaseOrderId) {
+      const purchaseOrderRecord = await this.purchaseOrderRepository.findOne({
+        entityId: input.entityId,
+        purchaseOrderId: input.purchaseOrderId,
+      });
+      if (!purchaseOrderRecord) {
+        throw new NotFoundException("Ordem de compra nao encontrada.");
+      }
     }
 
     const acquisitions = await this.acquisitionRepository.listAll(input);
 
     return {
-      acquisitions: acquisitions.map((acquisition) =>
-        toAcquisitionView(acquisition, purchaseOrderRecord.order.items)
+      acquisitions: await this.acquisitionViewService.build(
+        acquisitions,
+        input.purchaseOrderId
       ),
     };
   }
@@ -45,7 +49,9 @@ export namespace ListAcquisitionsUseCase {
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
+    search?: string;
+    status?: Acquisition.Status;
   };
 
   export type Output = {

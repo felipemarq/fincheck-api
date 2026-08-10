@@ -1,5 +1,4 @@
 import { Acquisition } from "@application/entities/Acquisition";
-import { PurchaseOrder } from "@application/entities/PurchaseOrder";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 
 const manuallyManagedStatuses = new Set([
@@ -9,16 +8,41 @@ const manuallyManagedStatuses = new Set([
 ]);
 
 export function validateAcquisition(
-  acquisition: Acquisition,
-  order: PurchaseOrder
+  acquisition: Acquisition
 ): void {
+  if (
+    !Object.values(Acquisition.PaymentMethod).includes(
+      acquisition.paymentMethod as Acquisition.PaymentMethod
+    )
+  ) {
+    throw new BadRequestException("Forma de pagamento invalida.");
+  }
+
+  if (
+    acquisition.paymentMethod === Acquisition.PaymentMethod.CREDIT_CARD &&
+    (!acquisition.creditCardId || !acquisition.firstPaymentDueAt)
+  ) {
+    throw new BadRequestException(
+      "Compras no cartao exigem cartao e primeiro vencimento."
+    );
+  }
+
+  if (
+    acquisition.paymentMethod === Acquisition.PaymentMethod.BOLETO &&
+    !acquisition.firstPaymentDueAt
+  ) {
+    throw new BadRequestException("Informe o vencimento do boleto.");
+  }
   if (!manuallyManagedStatuses.has(acquisition.status)) {
     throw new BadRequestException(
       "A situacao informada depende dos recebimentos da aquisicao."
     );
   }
 
-  if (acquisition.paymentInstrument) {
+  if (
+    acquisition.paymentMethod === Acquisition.PaymentMethod.DEBIT_CARD &&
+    acquisition.paymentInstrument
+  ) {
     const digitCount =
       acquisition.paymentInstrument.match(/\d/g)?.length ?? 0;
 
@@ -29,31 +53,33 @@ export function validateAcquisition(
     }
   }
 
-  const orderItemIds = new Set(
-    order.items.flatMap((item) => (item.id ? [item.id] : []))
-  );
-  const acquisitionItemIds = new Set<string>();
-
   acquisition.items.forEach((item) => {
-    if (!orderItemIds.has(item.purchaseOrderItemId)) {
-      throw new BadRequestException(
-        "Todos os itens adquiridos devem pertencer a ordem informada."
-      );
-    }
-
-    if (acquisitionItemIds.has(item.purchaseOrderItemId)) {
-      throw new BadRequestException(
-        "Um item da ordem nao pode se repetir na mesma aquisicao."
-      );
-    }
-
     if (item.lineDiscount > item.grossCost) {
       throw new BadRequestException(
         "O desconto de um item nao pode superar seu custo bruto."
       );
     }
 
-    acquisitionItemIds.add(item.purchaseOrderItemId);
+    const destinationIds = new Set<string>();
+    item.allocations.forEach((allocation) => {
+      if (allocation.allocatedQuantity <= 0) {
+        throw new BadRequestException(
+          "A quantidade destinada deve ser maior que zero."
+        );
+      }
+      if (destinationIds.has(allocation.purchaseOrderItemId)) {
+        throw new BadRequestException(
+          "Uma destinacao nao pode se repetir no mesmo item comprado."
+        );
+      }
+      destinationIds.add(allocation.purchaseOrderItemId);
+    });
+
+    if (item.allocatedQuantity > item.acquiredQuantity + 0.0005) {
+      throw new BadRequestException(
+        "A quantidade destinada nao pode superar a quantidade comprada."
+      );
+    }
   });
 
   if (acquisition.totalCost < 0) {
