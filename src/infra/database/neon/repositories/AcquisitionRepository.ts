@@ -17,6 +17,7 @@ import {
   acquisitionItemAllocationsTable,
   acquisitionItemsTable,
   acquisitionsTable,
+  productsTable,
   purchaseOrderItemsTable,
 } from "../schema";
 
@@ -148,11 +149,34 @@ export class AcquisitionRepository {
     const conditions = [eq(acquisitionsTable.entityId, entityId)];
     if (status) conditions.push(eq(acquisitionsTable.status, status));
     if (search) {
+      const matchingProductPurchases = this.databaseService.db
+        .select({ acquisitionId: acquisitionItemsTable.acquisitionId })
+        .from(acquisitionItemsTable)
+        .innerJoin(
+          productsTable,
+          and(
+            eq(productsTable.id, acquisitionItemsTable.productId),
+            eq(productsTable.entityId, entityId)
+          )
+        )
+        .where(
+          and(
+            eq(acquisitionItemsTable.entityId, entityId),
+            or(
+              ilike(productsTable.name, `%${search}%`),
+              ilike(productsTable.code, `%${search}%`),
+              ilike(productsTable.brand, `%${search}%`),
+              ilike(productsTable.specification, `%${search}%`)
+            )
+          )
+        );
+
       conditions.push(
         or(
           ilike(acquisitionsTable.sellerName, `%${search}%`),
           ilike(acquisitionsTable.channel, `%${search}%`),
-          ilike(acquisitionsTable.sellerOrderNumber, `%${search}%`)
+          ilike(acquisitionsTable.sellerOrderNumber, `%${search}%`),
+          inArray(acquisitionsTable.id, matchingProductPurchases)
         )!
       );
     }
