@@ -18,6 +18,17 @@ listInvoices:
         authorizer:
           name: CognitoAuthorizer
 
+listReceivables:
+  handler: src/main/functions/invoices/listReceivables.handler
+  memorySize: 512
+  timeout: 20
+  events:
+    - httpApi:
+        path: /entities/{entityId}/receivables
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
+
 updateInvoice:
   handler: src/main/functions/invoices/updateInvoice.handler
   memorySize: 512

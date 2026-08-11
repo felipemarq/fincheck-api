@@ -26,10 +26,15 @@ export type OperationsDashboardView = {
   };
   receivables: {
     openCount: number;
+    openTotal: number;
+    receivedCount: number;
+    receivedTotal: number;
     overdueCount: number;
     overdueTotal: number;
     dueTodayCount: number;
     dueTodayTotal: number;
+    dueNext7DaysCount: number;
+    dueNext7DaysTotal: number;
   };
   attentionOrders: Array<{
     id: string;

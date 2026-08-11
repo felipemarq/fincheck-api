@@ -9,10 +9,21 @@ import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { DatabaseService } from "..";
 import { InvoiceMapper } from "../items/InvoiceItem";
 import {
+  customersTable,
   invoiceItemsTable,
   invoicesTable,
+  purchaseOrdersTable,
   receivablePaymentsTable,
 } from "../schema";
+
+export type InvoiceWithContext = {
+  invoice: Invoice;
+  orderNumber: string;
+  orderExternalNumber?: string;
+  customerId: string;
+  customerName: string;
+  customerDocument: string;
+};
 
 @Injectable()
 export class InvoiceRepository {
@@ -129,6 +140,77 @@ export class InvoiceRepository {
         paymentRows.filter((payment) => payment.invoiceId === row.id)
       )
     );
+  }
+
+  async listAllForEntity({
+    entityId,
+  }: {
+    entityId: string;
+  }): Promise<InvoiceWithContext[]> {
+    const rows = await this.databaseService.db
+      .select({
+        invoice: invoicesTable,
+        order: purchaseOrdersTable,
+        customer: customersTable,
+      })
+      .from(invoicesTable)
+      .innerJoin(
+        purchaseOrdersTable,
+        and(
+          eq(purchaseOrdersTable.id, invoicesTable.purchaseOrderId),
+          eq(purchaseOrdersTable.entityId, invoicesTable.entityId)
+        )
+      )
+      .innerJoin(
+        customersTable,
+        and(
+          eq(customersTable.id, purchaseOrdersTable.customerId),
+          eq(customersTable.entityId, invoicesTable.entityId)
+        )
+      )
+      .where(eq(invoicesTable.entityId, entityId))
+      .orderBy(asc(invoicesTable.dueAt), desc(invoicesTable.createdAt));
+
+    if (!rows.length) {
+      return [];
+    }
+
+    const invoiceIds = rows.map(({ invoice }) => invoice.id);
+    const [itemRows, paymentRows] = await Promise.all([
+      this.databaseService.db
+        .select()
+        .from(invoiceItemsTable)
+        .where(
+          and(
+            eq(invoiceItemsTable.entityId, entityId),
+            inArray(invoiceItemsTable.invoiceId, invoiceIds)
+          )
+        )
+        .orderBy(asc(invoiceItemsTable.createdAt)),
+      this.databaseService.db
+        .select()
+        .from(receivablePaymentsTable)
+        .where(
+          and(
+            eq(receivablePaymentsTable.entityId, entityId),
+            inArray(receivablePaymentsTable.invoiceId, invoiceIds)
+          )
+        )
+        .orderBy(desc(receivablePaymentsTable.receivedAt)),
+    ]);
+
+    return rows.map(({ invoice, order, customer }) => ({
+      invoice: InvoiceMapper.fromRows(
+        invoice,
+        itemRows.filter((item) => item.invoiceId === invoice.id),
+        paymentRows.filter((payment) => payment.invoiceId === invoice.id)
+      ),
+      orderNumber: order.orderNumber,
+      orderExternalNumber: order.externalNumber ?? undefined,
+      customerId: customer.id,
+      customerName: customer.tradeName || customer.legalName,
+      customerDocument: customer.document,
+    }));
   }
 
   async findOne({

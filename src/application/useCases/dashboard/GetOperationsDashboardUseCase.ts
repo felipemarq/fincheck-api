@@ -1,8 +1,8 @@
-import { Invoice } from "@application/entities/Invoice";
 import { PurchaseOrder } from "@application/entities/PurchaseOrder";
 import { OperationsDashboardView } from "@application/queries/types/OperationsDashboardView";
 import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
 import { buildInclusiveUtcDateRange } from "@application/services/buildInclusiveUtcDateRange";
+import { buildReceivablesSummary } from "@application/services/buildReceivablesSummary";
 import { getPurchaseOrderOperationalStatus } from "@application/services/purchaseOrderOperationalStatus";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
@@ -28,27 +28,21 @@ export class GetOperationsDashboardUseCase {
     await this.organizationAccessService.assertUserAccess(entityId, userId);
 
     const issuedRange = buildInclusiveUtcDateRange(issuedFrom, issuedTo);
-    const activeRecords = await this.purchaseOrderRepository.listAll({
-      entityId,
-      lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
-      issuedFrom: issuedRange.dateFrom,
-      issuedBefore: issuedRange.dateBefore,
-    });
-    const invoicesByOrder = new Map(
-      await Promise.all(
-        activeRecords.map(async ({ order }) => [
-          order.id!,
-          await this.invoiceRepository.listAll({
-            entityId,
-            purchaseOrderId: order.id!,
-          }),
-        ] as const)
-      )
-    );
+    const [activeRecords, invoiceRecords] = await Promise.all([
+      this.purchaseOrderRepository.listAll({
+        entityId,
+        lifecycleStatus: PurchaseOrder.LifecycleStatus.ACTIVE,
+        issuedFrom: issuedRange.dateFrom,
+        issuedBefore: issuedRange.dateBefore,
+      }),
+      this.invoiceRepository.listAllForEntity({ entityId }),
+    ]);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const receivablesSummary = buildReceivablesSummary(
+      invoiceRecords.map(({ invoice }) => invoice),
+      today
+    );
 
     const operational = {
       activeOrders: activeRecords.length,
@@ -73,11 +67,16 @@ export class GetOperationsDashboardUseCase {
       invoicedMargin: 0,
     };
     const receivables = {
-      openCount: 0,
-      overdueCount: 0,
-      overdueTotal: 0,
-      dueTodayCount: 0,
-      dueTodayTotal: 0,
+      openCount: receivablesSummary.openCount,
+      openTotal: receivablesSummary.openAmount,
+      receivedCount: receivablesSummary.receivedCount,
+      receivedTotal: receivablesSummary.receivedAmount,
+      overdueCount: receivablesSummary.overdueCount,
+      overdueTotal: receivablesSummary.overdueAmount,
+      dueTodayCount: receivablesSummary.dueTodayCount,
+      dueTodayTotal: receivablesSummary.dueTodayAmount,
+      dueNext7DaysCount: receivablesSummary.dueNext7DaysCount,
+      dueNext7DaysTotal: receivablesSummary.dueNext7DaysAmount,
     };
 
     const attentionOrders = activeRecords.map(({ order, customer }) => {
@@ -112,25 +111,6 @@ export class GetOperationsDashboardUseCase {
       financial.knownCostMargin += order.knownCostMargin;
       financial.invoicedMargin += order.invoicedMargin;
 
-      (invoicesByOrder.get(order.id!) ?? []).forEach((invoice) => {
-        if (
-          invoice.status !== Invoice.Status.ISSUED ||
-          invoice.outstandingAmount <= 0
-        ) {
-          return;
-        }
-
-        receivables.openCount += 1;
-
-        if (invoice.dueAt.getTime() < today.getTime()) {
-          receivables.overdueCount += 1;
-          receivables.overdueTotal += invoice.outstandingAmount;
-        } else if (invoice.dueAt.getTime() < tomorrow.getTime()) {
-          receivables.dueTodayCount += 1;
-          receivables.dueTodayTotal += invoice.outstandingAmount;
-        }
-      });
-
       return {
         id: order.id!,
         orderNumber: order.orderNumber,
@@ -149,9 +129,6 @@ export class GetOperationsDashboardUseCase {
       const typedKey = key as keyof typeof financial;
       financial[typedKey] = roundMoney(financial[typedKey]);
     });
-    receivables.overdueTotal = roundMoney(receivables.overdueTotal);
-    receivables.dueTodayTotal = roundMoney(receivables.dueTodayTotal);
-
     return {
       generatedAt: new Date(),
       operational,

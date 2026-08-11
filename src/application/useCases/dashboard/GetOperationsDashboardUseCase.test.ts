@@ -15,7 +15,7 @@ test("consulta somente ordens ativas emitidas no periodo inclusivo", async () =>
         return [];
       },
     } as never,
-    { listAll: async () => [] } as never,
+    { listAllForEntity: async () => [] } as never,
     { assertUserAccess: async () => undefined } as never
   );
 
