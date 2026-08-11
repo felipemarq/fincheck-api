@@ -185,12 +185,39 @@ export class PurchaseOrderRepository {
     }
 
     if (search) {
+      const pattern = `%${search}%`;
+      const matchingOrderItems = this.databaseService.db
+        .select({ purchaseOrderId: purchaseOrderItemsTable.purchaseOrderId })
+        .from(purchaseOrderItemsTable)
+        .innerJoin(
+          productsTable,
+          and(
+            eq(productsTable.id, purchaseOrderItemsTable.productId),
+            eq(productsTable.entityId, entityId)
+          )
+        )
+        .where(
+          and(
+            eq(purchaseOrderItemsTable.entityId, entityId),
+            or(
+              ilike(purchaseOrderItemsTable.description, pattern),
+              ilike(purchaseOrderItemsTable.brand, pattern),
+              ilike(purchaseOrderItemsTable.specification, pattern),
+              ilike(productsTable.name, pattern),
+              ilike(productsTable.code, pattern),
+              ilike(productsTable.brand, pattern),
+              ilike(productsTable.specification, pattern)
+            )
+          )
+        );
+
       conditions.push(
         or(
-          ilike(purchaseOrdersTable.orderNumber, `%${search}%`),
-          ilike(purchaseOrdersTable.externalNumber, `%${search}%`),
-          ilike(customersTable.legalName, `%${search}%`),
-          ilike(customersTable.tradeName, `%${search}%`)
+          ilike(purchaseOrdersTable.orderNumber, pattern),
+          ilike(purchaseOrdersTable.externalNumber, pattern),
+          ilike(customersTable.legalName, pattern),
+          ilike(customersTable.tradeName, pattern),
+          inArray(purchaseOrdersTable.id, matchingOrderItems)
         )!
       );
     }
