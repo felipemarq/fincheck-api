@@ -1,4 +1,4 @@
-import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum, date } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -47,6 +47,37 @@ export const usersTable = pgTable("users", {
 	externalId: varchar({ length: 255 }),
 }, (table) => [
 	unique("users_email_unique").on(table.email),
+]);
+
+export const userFeaturesTable = pgTable("user_features", {
+	userId: uuid("user_id").notNull(),
+	feature: varchar({ length: 80 }).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	primaryKey({ columns: [table.userId, table.feature], name: "user_features_pkey" }),
+	index("user_features_feature_idx").on(table.feature),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [usersTable.id],
+		name: "user_features_user_id_users_id_fk"
+	}).onDelete("cascade"),
+]);
+
+export const bodyWeightEntriesTable = pgTable("body_weight_entries", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	userId: uuid("user_id").notNull(),
+	measuredOn: date("measured_on").notNull(),
+	weightGrams: integer("weight_grams").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("body_weight_entries_user_date_uq").on(table.userId, table.measuredOn),
+	index("body_weight_entries_user_date_idx").on(table.userId, table.measuredOn),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [usersTable.id],
+		name: "body_weight_entries_user_id_users_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const receivablePaymentsTable = pgTable("receivable_payments", {
@@ -865,3 +896,5 @@ export type QuotationItemRow = typeof quotationItemsTable.$inferSelect;
 export type NewQuotationItemRow = typeof quotationItemsTable.$inferInsert;
 export type QuotationItemImageRow = typeof quotationItemImagesTable.$inferSelect;
 export type NewQuotationItemImageRow = typeof quotationItemImagesTable.$inferInsert;
+export type BodyWeightEntryRow = typeof bodyWeightEntriesTable.$inferSelect;
+export type NewBodyWeightEntryRow = typeof bodyWeightEntriesTable.$inferInsert;

@@ -190,6 +190,18 @@ ordens pela data de emissao, com inicio e fim inclusivos no formato
 `YYYY-MM-DD`. Sem esses parametros, o endpoint preserva a visao geral de todas
 as ordens ativas.
 
+## Acompanhamento pessoal de peso
+
+- `GET /me/body-weights`
+- `PUT /me/body-weights/{measuredOn}`
+- `DELETE /me/body-weights/{measuredOn}`
+
+As tres rotas exigem Cognito e a feature `BODY_WEIGHT` vinculada ao usuario.
+Elas nao recebem `entityId` nem `userId`: o proprietario e sempre derivado do
+token. A listagem aceita `from` e `to` no formato `YYYY-MM-DD`. O `PUT` recebe
+`weightKg`, faz criacao ou atualizacao da data e preserva ate tres casas
+decimais. Somente pesos entre 20 e 500 kg sao aceitos.
+
 ## Formato de erro
 
 Erros de validacao seguem o formato:

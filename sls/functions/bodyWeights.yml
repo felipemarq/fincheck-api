@@ -1,0 +1,29 @@
+listBodyWeights:
+  handler: src/main/functions/bodyWeights/listBodyWeights.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: GET
+        path: /me/body-weights
+        authorizer:
+          name: CognitoAuthorizer
+
+upsertBodyWeight:
+  handler: src/main/functions/bodyWeights/upsertBodyWeight.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: PUT
+        path: /me/body-weights/{measuredOn}
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteBodyWeight:
+  handler: src/main/functions/bodyWeights/deleteBodyWeight.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: DELETE
+        path: /me/body-weights/{measuredOn}
+        authorizer:
+          name: CognitoAuthorizer

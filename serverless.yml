@@ -77,6 +77,7 @@ functions:
   - ${file(./sls/functions/operationsDashboard.yml)}
   - ${file(./sls/functions/entities.yml)}
   - ${file(./sls/functions/users.yml)}
+  - ${file(./sls/functions/bodyWeights.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

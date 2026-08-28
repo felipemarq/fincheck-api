@@ -18,6 +18,7 @@ de ordens de compra. Os modulos ativos sao:
 - entregas
 - notas fiscais e pagamentos
 - painel operacional
+- acompanhamento pessoal de peso habilitado individualmente por usuario
 
 As rotas e implementacoes da antiga gestao financeira generica foram retiradas.
 Contas, categorias, contatos, transacoes, recorrencias, impostos mensais e o
@@ -81,7 +82,8 @@ como modulos novos e estritamente vinculados ao fluxo operacional de compras.
 
 ## Banco de dados
 
-O schema atual possui 21 tabelas e 9 enums, todos pertencentes ao MVP. A
+O schema atual possui 23 tabelas e 9 enums. As tabelas operacionais pertencem
+ao MVP da empresa e as duas tabelas pessoais ficam isoladas por usuario. A
 migracao `0004_remove-legacy-finance.sql` removeu 11 tabelas e 3 enums da
 versao financeira anterior depois da confirmacao de que estavam vazios e sem
 dependencias vindas das tabelas operacionais.
@@ -103,6 +105,9 @@ comprados e itens de ordem, preservando automaticamente os registros antigos.
 
 `0008_quotations.sql` cria cotacoes, itens, imagens e o enum de situacao. Os
 arquivos ficam em bucket S3 privado; o banco guarda somente metadados e chaves.
+
+`0009_personal-weight-tracking.sql` cria as permissoes de features pessoais e
+o historico de pesagens diarias sem depender da organizacao ativa.
 
 ## Qualidade atual
 

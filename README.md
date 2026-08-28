@@ -32,6 +32,7 @@ acompanhar o recebimento do cliente.
 - entregas totais e parciais
 - notas fiscais e pagamentos do cliente
 - painel operacional com periodo por emissao, pendencias, custos e margens
+- modulo pessoal opcional de pesagem diaria, isolado por usuario
 
 Contas bancarias, categorias, transacoes genericas, recorrencias, cartoes,
 contatos, impostos mensais e o dashboard financeiro da versao anterior nao
@@ -68,6 +69,7 @@ pnpm test
 pnpm exec drizzle-kit check
 pnpm exec serverless print
 pnpm db:migrate
+pnpm feature:grant -- usuario@exemplo.com BODY_WEIGHT
 ```
 
 ## Publicacao da V2

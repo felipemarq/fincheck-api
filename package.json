@@ -9,6 +9,7 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "feature:grant": "tsx scripts/grantPersonalFeature.ts",
     "dev:email": "email dev --dir src/infra/emails/templates"
   },
   "keywords": [],

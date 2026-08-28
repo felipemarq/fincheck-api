@@ -40,6 +40,11 @@ de recebimento para considerar tambem a ordem de destino.
 snapshots comerciais e as imagens guardam somente metadados e a chave do
 objeto privado no S3.
 
+`0009_personal-weight-tracking.sql` cria as features pessoais por usuario e o
+historico diario de peso. A migracao e aditiva e nao altera tabelas
+operacionais. A chave unica `(user_id, measured_on)` garante uma pesagem por
+dia para cada usuario.
+
 ## Regra de seguranca
 
 Nao execute a migracao `0000` diretamente sobre o banco legado existente. Como
@@ -95,6 +100,14 @@ Para publicar cotacoes:
 
 O bucket possui politica de retencao no CloudFormation. Remover a stack nao
 apaga automaticamente as imagens comerciais.
+
+Para publicar o acompanhamento pessoal de peso:
+
+1. Aplicar `0009_personal-weight-tracking.sql` antes da API.
+2. Habilitar a feature somente para a conta autorizada com
+   `pnpm feature:grant -- usuario@exemplo.com BODY_WEIGHT`.
+3. Publicar a API e validar que `/me` retorna `BODY_WEIGHT` em `features`.
+4. Publicar o Web com a rota privada `/me/peso`.
 
 ## Comandos
 

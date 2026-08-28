@@ -3,12 +3,16 @@ import { User } from "@application/entities/User";
 import { UnauthorizedException } from "@application/errors/http/UnauthorizedException";
 import { DatabaseService } from "@infra/database/neon";
 import { entitiesTable, usersTable } from "@infra/database/neon/schema";
+import { UserFeatureRepository } from "@infra/database/neon/repositories/UserFeatureRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { asc, eq } from "drizzle-orm";
 
 @Injectable()
 export class GetMeQuery {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly userFeatureRepository: UserFeatureRepository
+  ) {}
 
   async execute(getMeQueryInput: GetMeQuery.Input): Promise<GetMeQuery.Output> {
     const rows = await this.databaseService.db
@@ -24,9 +28,13 @@ export class GetMeQuery {
       );
     }
     const userRow = rows[0].users;
+    const features = await this.userFeatureRepository.listForUser(
+      getMeQueryInput.userId
+    );
     const user = new User({
       ...userRow,
       externalId: userRow?.externalId ?? undefined,
+      features,
     });
 
     const entities = rows
