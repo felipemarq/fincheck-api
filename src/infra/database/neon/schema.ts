@@ -80,6 +80,42 @@ export const bodyWeightEntriesTable = pgTable("body_weight_entries", {
 	}).onDelete("cascade"),
 ]);
 
+export const personalHealthProfilesTable = pgTable("personal_health_profiles", {
+	userId: uuid("user_id").primaryKey().notNull(),
+	targetWeightGrams: integer("target_weight_grams"),
+	targetDate: date("target_date"),
+	heightCm: integer("height_cm"),
+	birthDate: date("birth_date"),
+	calculationSex: varchar("calculation_sex", { length: 20 }),
+	activityLevel: varchar("activity_level", { length: 40 }),
+	dailyExpenditureOverrideKcal: integer("daily_expenditure_override_kcal"),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [usersTable.id],
+		name: "personal_health_profiles_user_id_users_id_fk"
+	}).onDelete("cascade"),
+]);
+
+export const dailyCalorieEntriesTable = pgTable("daily_calorie_entries", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	userId: uuid("user_id").notNull(),
+	loggedOn: date("logged_on").notNull(),
+	caloriesConsumed: integer("calories_consumed").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("daily_calorie_entries_user_date_uq").on(table.userId, table.loggedOn),
+	index("daily_calorie_entries_user_date_idx").on(table.userId, table.loggedOn),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [usersTable.id],
+		name: "daily_calorie_entries_user_id_users_id_fk"
+	}).onDelete("cascade"),
+]);
+
 export const receivablePaymentsTable = pgTable("receivable_payments", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
@@ -898,3 +934,7 @@ export type QuotationItemImageRow = typeof quotationItemImagesTable.$inferSelect
 export type NewQuotationItemImageRow = typeof quotationItemImagesTable.$inferInsert;
 export type BodyWeightEntryRow = typeof bodyWeightEntriesTable.$inferSelect;
 export type NewBodyWeightEntryRow = typeof bodyWeightEntriesTable.$inferInsert;
+export type PersonalHealthProfileRow = typeof personalHealthProfilesTable.$inferSelect;
+export type NewPersonalHealthProfileRow = typeof personalHealthProfilesTable.$inferInsert;
+export type DailyCalorieEntryRow = typeof dailyCalorieEntriesTable.$inferSelect;
+export type NewDailyCalorieEntryRow = typeof dailyCalorieEntriesTable.$inferInsert;

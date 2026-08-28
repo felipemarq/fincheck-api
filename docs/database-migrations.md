@@ -45,6 +45,10 @@ historico diario de peso. A migracao e aditiva e nao altera tabelas
 operacionais. A chave unica `(user_id, measured_on)` garante uma pesagem por
 dia para cada usuario.
 
+`0010_personal-health-v1-1.sql` adiciona o perfil pessoal de meta e estimativa
+energetica e o historico diario de calorias. A migracao e aditiva, usa o mesmo
+usuario da feature privada e garante um registro de calorias por usuario e dia.
+
 ## Regra de seguranca
 
 Nao execute a migracao `0000` diretamente sobre o banco legado existente. Como
@@ -108,6 +112,13 @@ Para publicar o acompanhamento pessoal de peso:
    `pnpm feature:grant -- usuario@exemplo.com BODY_WEIGHT`.
 3. Publicar a API e validar que `/me` retorna `BODY_WEIGHT` em `features`.
 4. Publicar o Web com a rota privada `/me/peso`.
+
+Para publicar a V1.1 pessoal:
+
+1. Aplicar `0010_personal-health-v1-1.sql` antes da nova API.
+2. Manter a feature `BODY_WEIGHT` ja concedida; nao e necessaria nova permissao.
+3. Publicar a API e validar perfil e calorias com o token do usuario autorizado.
+4. Publicar o Web atualizado na mesma rota privada `/me/peso`.
 
 ## Comandos
 

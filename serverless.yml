@@ -78,6 +78,7 @@ functions:
   - ${file(./sls/functions/entities.yml)}
   - ${file(./sls/functions/users.yml)}
   - ${file(./sls/functions/bodyWeights.yml)}
+  - ${file(./sls/functions/personalHealth.yml)}
 
 resources:
   - ${file(./sls/resources/UserPool.yml)}

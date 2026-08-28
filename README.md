@@ -32,7 +32,8 @@ acompanhar o recebimento do cliente.
 - entregas totais e parciais
 - notas fiscais e pagamentos do cliente
 - painel operacional com periodo por emissao, pendencias, custos e margens
-- modulo pessoal opcional de pesagem diaria, isolado por usuario
+- modulo pessoal opcional de peso, meta, calorias e estimativas, isolado por
+  usuario
 
 Contas bancarias, categorias, transacoes genericas, recorrencias, cartoes,
 contatos, impostos mensais e o dashboard financeiro da versao anterior nao
@@ -76,6 +77,8 @@ pnpm feature:grant -- usuario@exemplo.com BODY_WEIGHT
 
 A migracao `0008_quotations.sql` deve ser aplicada antes de publicar o modulo
 de cotacoes. O deploy Serverless cria o bucket privado usado pelas imagens.
+O modulo pessoal V1.1 exige tambem `0010_personal-health-v1-1.sql`; ele reutiliza
+a feature privada `BODY_WEIGHT` e nao cria uma nova permissao.
 Consulte o procedimento seguro em
 [Migracoes de banco](./docs/database-migrations.md).
 

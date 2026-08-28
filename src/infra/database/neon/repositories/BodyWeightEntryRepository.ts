@@ -1,6 +1,6 @@
 import { BodyWeightEntry } from "@application/entities/BodyWeightEntry";
 import { Injectable } from "@kernel/decorators/Injectable";
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { DatabaseService } from "..";
 import { BodyWeightEntryItem } from "../items/BodyWeightEntryItem";
 import { bodyWeightEntriesTable } from "../schema";
@@ -53,6 +53,25 @@ export class BodyWeightEntryRepository {
     return BodyWeightEntryItem.fromRow(row);
   }
 
+  async findLatestOnOrBefore({
+    userId,
+    measuredOn,
+  }: BodyWeightEntryRepository.FindLatestInput): Promise<BodyWeightEntry | null> {
+    const [row] = await this.databaseService.db
+      .select()
+      .from(bodyWeightEntriesTable)
+      .where(
+        and(
+          eq(bodyWeightEntriesTable.userId, userId),
+          lte(bodyWeightEntriesTable.measuredOn, measuredOn)
+        )
+      )
+      .orderBy(desc(bodyWeightEntriesTable.measuredOn))
+      .limit(1);
+
+    return row ? BodyWeightEntryItem.fromRow(row) : null;
+  }
+
   async delete({
     userId,
     measuredOn,
@@ -79,6 +98,11 @@ export namespace BodyWeightEntryRepository {
     userId: string;
     measuredOn: string;
     weightGrams: number;
+  };
+
+  export type FindLatestInput = {
+    userId: string;
+    measuredOn: string;
   };
 
   export type DeleteInput = {

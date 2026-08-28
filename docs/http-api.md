@@ -190,17 +190,37 @@ ordens pela data de emissao, com inicio e fim inclusivos no formato
 `YYYY-MM-DD`. Sem esses parametros, o endpoint preserva a visao geral de todas
 as ordens ativas.
 
-## Acompanhamento pessoal de peso
+## Acompanhamento pessoal de saude
 
 - `GET /me/body-weights`
 - `PUT /me/body-weights/{measuredOn}`
 - `DELETE /me/body-weights/{measuredOn}`
+- `GET /me/health-profile`
+- `PUT /me/health-profile`
+- `GET /me/daily-calories`
+- `PUT /me/daily-calories/{loggedOn}`
+- `DELETE /me/daily-calories/{loggedOn}`
 
-As tres rotas exigem Cognito e a feature `BODY_WEIGHT` vinculada ao usuario.
+Todas as rotas exigem Cognito e a feature `BODY_WEIGHT` vinculada ao usuario.
 Elas nao recebem `entityId` nem `userId`: o proprietario e sempre derivado do
-token. A listagem aceita `from` e `to` no formato `YYYY-MM-DD`. O `PUT` recebe
-`weightKg`, faz criacao ou atualizacao da data e preserva ate tres casas
-decimais. Somente pesos entre 20 e 500 kg sao aceitos.
+token. As listagens aceitam `from` e `to` no formato `YYYY-MM-DD`; cada `PUT`
+diario cria ou atualiza o registro daquela data. Pesos aceitam ate tres casas
+decimais entre 20 e 500 kg. Calorias sao inteiras entre 0 e 20.000 kcal.
+
+O perfil guarda meta de peso e data-alvo opcionais. Altura, nascimento,
+coeficiente sexual da equacao e nivel de atividade alimentam a estimativa de
+energia. O gasto em repouso usa Mifflin-St Jeor e o gasto diario multiplica essa
+base por um fator representativo do nivel de atividade: `1.55` para
+sedentario/leve, `1.75` para ativo/moderado e `2.20` para intenso/vigoroso. Um
+gasto diario manual opcional substitui a estimativa nos balancos.
+
+Cada caloria listada retorna o gasto calculado com a ultima pesagem disponivel
+naquela data e `balanceKcal`. Valor positivo representa deficit estimado;
+valor negativo representa superavit. Dias sem calorias nao sao criados nem
+tratados como consumo zero, e o resumo informa quantos dias possuem calculo.
+As equacoes sao estimativas para adultos, nao prescricoes clinicas. Referencias:
+[Mifflin-St Jeor](https://pubmed.ncbi.nlm.nih.gov/2305711/) e
+[FAO/WHO/UNU sobre PAL](https://www.fao.org/4/y5686e/y5686e07.htm).
 
 ## Formato de erro
 

@@ -1,0 +1,49 @@
+getPersonalHealthProfile:
+  handler: src/main/functions/personalHealth/getPersonalHealthProfile.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: GET
+        path: /me/health-profile
+        authorizer:
+          name: CognitoAuthorizer
+
+upsertPersonalHealthProfile:
+  handler: src/main/functions/personalHealth/upsertPersonalHealthProfile.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: PUT
+        path: /me/health-profile
+        authorizer:
+          name: CognitoAuthorizer
+
+listDailyCalories:
+  handler: src/main/functions/personalHealth/listDailyCalories.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: GET
+        path: /me/daily-calories
+        authorizer:
+          name: CognitoAuthorizer
+
+upsertDailyCalorie:
+  handler: src/main/functions/personalHealth/upsertDailyCalorie.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: PUT
+        path: /me/daily-calories/{loggedOn}
+        authorizer:
+          name: CognitoAuthorizer
+
+deleteDailyCalorie:
+  handler: src/main/functions/personalHealth/deleteDailyCalorie.handler
+  memorySize: 512
+  events:
+    - httpApi:
+        method: DELETE
+        path: /me/daily-calories/{loggedOn}
+        authorizer:
+          name: CognitoAuthorizer
