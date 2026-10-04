@@ -1,0 +1,44 @@
+export type ShoppingListItem = {
+  id: string;
+  entityId: string;
+  shoppingListId: string;
+  url: string;
+  title: string | null;
+  productId: string | null;
+  purchaseOrderId: string | null;
+  purchaseOrderItemId: string | null;
+  quantity: number | null;
+  estimatedUnitPrice: number | null;
+  sellerName: string | null;
+  priority: "NORMAL" | "HIGH" | "URGENT";
+  neededBy: string | null;
+  notes: string | null;
+  purchasedAt: Date | null;
+  purchasedByUserId: string | null;
+  acquisitionId: string | null;
+  version: number;
+  createdByUserId: string;
+  updatedByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  productName?: string | null;
+  orderNumber?: string | null;
+  orderItemDescription?: string | null;
+  createdByName?: string | null;
+  purchasedByName?: string | null;
+};
+
+export type ShoppingList = {
+  id: string;
+  entityId: string;
+  name: string;
+  notes: string | null;
+  archived: boolean;
+  createdByUserId: string;
+  updatedByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  totalItems: number;
+  purchasedItems: number;
+  estimatedTotal: number;
+};

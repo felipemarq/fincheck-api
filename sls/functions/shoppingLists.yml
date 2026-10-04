@@ -1,0 +1,14 @@
+# Route reference. Production owns these routes in fincheck-shopping-lists-dev;
+# deploy using scripts/deployShoppingLists.ps1, not the main Serverless stack.
+shoppingLists:
+  handler: src/main/functions/shoppingLists/shoppingLists.handler
+  events:
+    - httpApi: { method: GET, path: /entities/{entityId}/shopping-lists, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: POST, path: /entities/{entityId}/shopping-lists, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: GET, path: /entities/{entityId}/shopping-lists/{shoppingListId}, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: PATCH, path: /entities/{entityId}/shopping-lists/{shoppingListId}, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: POST, path: /entities/{entityId}/shopping-lists/{shoppingListId}/items, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: PUT, path: /entities/{entityId}/shopping-lists/{shoppingListId}/items/{itemId}, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: DELETE, path: /entities/{entityId}/shopping-lists/{shoppingListId}/items/{itemId}, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: PATCH, path: /entities/{entityId}/shopping-lists/{shoppingListId}/items/{itemId}/check, authorizer: { name: CognitoAuthorizer } }
+    - httpApi: { method: POST, path: /entities/{entityId}/shopping-lists/{shoppingListId}/items/{itemId}/purchase, authorizer: { name: CognitoAuthorizer } }

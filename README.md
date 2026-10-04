@@ -89,3 +89,4 @@ Consulte o procedimento seguro em
 - [Arquitetura](./docs/architecture.md)
 - [Estado atual](./docs/current-state.md)
 - [API HTTP](./docs/http-api.md)
+- [Listas de compras e publicação do módulo](./docs/shopping-lists.md)

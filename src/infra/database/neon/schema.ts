@@ -1,5 +1,44 @@
 import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum, date } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+export const shoppingListsTable = pgTable("shopping_lists", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  entityId: uuid("entity_id").notNull().references(() => entitiesTable.id, { onDelete: "cascade" }),
+  name: varchar({ length: 160 }).notNull(),
+  notes: text(),
+  archived: boolean().default(false).notNull(),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => usersTable.id),
+  updatedByUserId: uuid("updated_by_user_id").notNull().references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [index("shopping_lists_entity_idx").on(table.entityId, table.archived)]);
+
+export const shoppingListItemsTable = pgTable("shopping_list_items", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  entityId: uuid("entity_id").notNull().references(() => entitiesTable.id, { onDelete: "cascade" }),
+  shoppingListId: uuid("shopping_list_id").notNull().references(() => shoppingListsTable.id, { onDelete: "cascade" }),
+  url: varchar({ length: 4000 }).notNull(),
+  title: varchar({ length: 240 }),
+  productId: uuid("product_id").references(() => productsTable.id, { onDelete: "set null" }),
+  purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrdersTable.id, { onDelete: "set null" }),
+  purchaseOrderItemId: uuid("purchase_order_item_id").references(() => purchaseOrderItemsTable.id, { onDelete: "set null" }),
+  quantity: numeric({ precision: 14, scale: 3 }),
+  estimatedUnitPrice: numeric("estimated_unit_price", { precision: 16, scale: 6 }),
+  sellerName: varchar("seller_name", { length: 160 }),
+  priority: varchar({ length: 10 }).default("NORMAL").notNull(),
+  neededBy: date("needed_by"),
+  notes: text(),
+  purchasedAt: timestamp("purchased_at", { withTimezone: true }),
+  purchasedByUserId: uuid("purchased_by_user_id").references(() => usersTable.id),
+  acquisitionId: uuid("acquisition_id").references(() => acquisitionsTable.id),
+  version: integer().default(1).notNull(),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => usersTable.id),
+  updatedByUserId: uuid("updated_by_user_id").notNull().references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  index("shopping_list_items_list_idx").on(table.entityId, table.shoppingListId),
+  uniqueIndex("shopping_list_items_acquisition_uq").on(table.acquisitionId),
+]);
 
 
 

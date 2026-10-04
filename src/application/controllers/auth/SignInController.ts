@@ -4,7 +4,7 @@ import { Controller } from "@application/contracts/Controller";
 
 import { Injectable } from "@kernel/decorators/Injectable";
 import { SignInUseCase } from "@application/useCases/auth/SignInUseCase";
-import { SignInBody, signInSchema } from "./schemas/signInSchema";
+import { SignInBody, signInSchema } from "./schemas/signinSchema";
 
 @Injectable()
 @Schema(signInSchema)

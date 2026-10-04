@@ -4,10 +4,14 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: [".serverless", "node_modules", "docs"],
+    ignores: [".serverless", "node_modules", "docs", "tmp"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ["scripts/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
