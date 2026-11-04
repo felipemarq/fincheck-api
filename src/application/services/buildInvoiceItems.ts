@@ -21,7 +21,14 @@ export function buildInvoiceItems(
   currentItems: InvoiceItem[] = [],
 ): InvoiceItem[] {
   return items.map((item, index) => {
-    const current = currentItems.find((candidate) => candidate.id === item.id);
+    const current = item.id
+      ? currentItems.find((candidate) => candidate.id === item.id)
+      : item.purchaseOrderItemId
+        ? currentItems.find(
+            (candidate) =>
+              candidate.purchaseOrderItemId === item.purchaseOrderItemId,
+          )
+        : undefined;
     if (item.id && !current) {
       throw new BadRequestException(
         "O item informado nao pertence a esta nota.",
@@ -34,9 +41,12 @@ export function buildInvoiceItems(
       current?.purchaseOrderItemId === item.purchaseOrderItemId;
     return new InvoiceItem({
       ...item,
+      id: item.id ?? current?.id,
       entityId,
       invoiceId,
-      lineNumber: orderItem?.lineNumber ?? index + 1,
+      lineNumber: order
+        ? (current?.lineNumber ?? orderItem?.lineNumber ?? index + 1)
+        : index + 1,
       description: order
         ? ((sameOrderItem ? current?.description : undefined) ??
           orderItem?.description)
