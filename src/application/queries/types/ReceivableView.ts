@@ -3,7 +3,7 @@ import { InvoiceView } from "./InvoiceView";
 import { ReceivablesSummary } from "@application/services/buildReceivablesSummary";
 
 export type ReceivableView = InvoiceView & {
-  orderNumber: string;
+  orderNumber?: string;
   orderExternalNumber?: string;
   customerId: string;
   customerName: string;

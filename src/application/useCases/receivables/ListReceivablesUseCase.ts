@@ -6,12 +6,13 @@ import {
   ReceivablesPage,
   ReceivableView,
 } from "@application/queries/types/ReceivableView";
-import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { buildInclusiveUtcDateRange } from "@application/services/buildInclusiveUtcDateRange";
 import { buildReceivablesSummary } from "@application/services/buildReceivablesSummary";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
+import { financialCalendarDay } from "@shared/utils/financialCalendarDay";
 
 const DAY_IN_MS = 86_400_000;
 
@@ -31,13 +32,13 @@ function startOfUtcDay(value: Date) {
 }
 
 function getDaysOverdue(invoice: Invoice, referenceDate: Date) {
-  if (invoice.receivableStatus !== Invoice.ReceivableStatus.OVERDUE) {
+  if (invoice.status !== Invoice.Status.ISSUED || invoice.outstandingAmount <= 0) {
     return 0;
   }
 
   return Math.max(
     Math.floor(
-      (startOfUtcDay(referenceDate) - startOfUtcDay(invoice.dueAt)) / DAY_IN_MS
+      (financialCalendarDay(referenceDate).getTime() - startOfUtcDay(invoice.dueAt)) / DAY_IN_MS
     ),
     0
   );
@@ -48,6 +49,7 @@ function matchesStatus(
   status: ReceivableFilterStatus
 ) {
   if (status === "ALL") return true;
+  if (status === "OVERDUE") return receivable.daysOverdue > 0;
 
   if (status === "PENDING") {
     return (
@@ -87,7 +89,8 @@ function sortReceivables(
 
     if (sort === "URGENCY") {
       const rank =
-        urgencyRank[a.receivableStatus] - urgencyRank[b.receivableStatus];
+        (a.daysOverdue > 0 ? 0 : urgencyRank[a.receivableStatus]) -
+        (b.daysOverdue > 0 ? 0 : urgencyRank[b.receivableStatus]);
       if (rank !== 0) return rank;
     }
 
@@ -100,15 +103,16 @@ export class ListReceivablesUseCase {
   constructor(
     private readonly invoiceRepository: InvoiceRepository,
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
-    private readonly organizationAccessService: OrganizationAccessService
+    private readonly financialAccessService: FinancialAccessService
   ) {}
 
   async execute(
     input: ListReceivablesUseCase.Input
   ): Promise<ReceivablesPage> {
-    await this.organizationAccessService.assertUserAccess(
+    await this.financialAccessService.assertUserAccess(
       input.entityId,
-      input.userId
+      input.userId,
+      "finance.read"
     );
 
     const records = await this.invoiceRepository.listAllForEntity({
@@ -117,7 +121,7 @@ export class ListReceivablesUseCase {
     const itemContexts = await this.purchaseOrderRepository.findItemContexts({
       entityId: input.entityId,
       purchaseOrderItemIds: records.flatMap(({ invoice }) =>
-        invoice.items.map((item) => item.purchaseOrderItemId)
+        invoice.items.flatMap((item) => item.purchaseOrderItemId ? [item.purchaseOrderItemId] : [])
       ),
     });
     const orderItems = itemContexts.map(({ item }) => item);

@@ -1,6 +1,7 @@
 import { PurchaseOrder } from "@application/entities/PurchaseOrder";
+import { Invoice } from "@application/entities/Invoice";
 import { OperationsDashboardView } from "@application/queries/types/OperationsDashboardView";
-import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { buildInclusiveUtcDateRange } from "@application/services/buildInclusiveUtcDateRange";
 import { buildReceivablesSummary } from "@application/services/buildReceivablesSummary";
 import { getPurchaseOrderOperationalStatus } from "@application/services/purchaseOrderOperationalStatus";
@@ -16,7 +17,7 @@ export class GetOperationsDashboardUseCase {
   constructor(
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
     private readonly invoiceRepository: InvoiceRepository,
-    private readonly organizationAccessService: OrganizationAccessService
+    private readonly financialAccessService: FinancialAccessService
   ) {}
 
   async execute({
@@ -25,7 +26,7 @@ export class GetOperationsDashboardUseCase {
     issuedFrom,
     issuedTo,
   }: GetOperationsDashboardUseCase.Input): Promise<OperationsDashboardView> {
-    await this.organizationAccessService.assertUserAccess(entityId, userId);
+    await this.financialAccessService.assertUserAccess(entityId, userId, "dashboard.read");
 
     const issuedRange = buildInclusiveUtcDateRange(issuedFrom, issuedTo);
     const [activeRecords, invoiceRecords] = await Promise.all([
@@ -41,7 +42,7 @@ export class GetOperationsDashboardUseCase {
     today.setHours(0, 0, 0, 0);
     const receivablesSummary = buildReceivablesSummary(
       invoiceRecords.map(({ invoice }) => invoice),
-      today
+      new Date()
     );
 
     const operational = {
@@ -101,11 +102,6 @@ export class GetOperationsDashboardUseCase {
       financial.contractedRevenue += order.officialTotal;
       financial.acquisitionCost += order.knownAcquisitionCost;
       financial.deliveryCost += order.deliveryCost;
-      financial.invoicedRevenue += order.invoicedRevenue;
-      financial.taxCost += order.taxCost;
-      financial.otherDeductions += order.otherDeductions;
-      financial.receivedRevenue += order.receivedRevenue;
-      financial.receivableBalance += order.receivableBalance;
       financial.projectedMargin += order.projectedMargin;
       financial.costCoveredRevenue += order.costCoveredRevenue;
       financial.knownCostMargin += order.knownCostMargin;
@@ -123,6 +119,19 @@ export class GetOperationsDashboardUseCase {
         readyForDeliveryItems,
         receivableBalance: order.receivableBalance,
       };
+    });
+
+    // Fiscal totals follow the invoice issuance period, including invoices without an OC
+    // and invoices of archived/completed OCs. Operational margins remain OC based.
+    invoiceRecords.forEach(({ invoice }) => {
+      if (invoice.status !== Invoice.Status.ISSUED) return;
+      if (issuedRange.dateFrom && invoice.issuedAt < issuedRange.dateFrom) return;
+      if (issuedRange.dateBefore && invoice.issuedAt >= issuedRange.dateBefore) return;
+      financial.invoicedRevenue += invoice.grossAmount;
+      financial.taxCost += invoice.taxAmount;
+      financial.otherDeductions += invoice.otherDeductions;
+      financial.receivedRevenue += invoice.receivedAmount;
+      financial.receivableBalance += invoice.outstandingAmount;
     });
 
     Object.keys(financial).forEach((key) => {

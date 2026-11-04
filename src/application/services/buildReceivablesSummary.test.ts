@@ -112,3 +112,11 @@ test("resume recebiveis vencidos, parciais e proximos sem perder centavos", () =
     dueNext7DaysAmount: 80,
   });
 });
+
+test("mantem o vencimento no dia correto depois da meia-noite UTC", () => {
+  const invoice = makeInvoice({ id: "brazil-today", dueAt: "2026-11-03T12:00:00Z", amount: 100, receivedAmount: 10 });
+  const beforeMidnightInBrazil = buildReceivablesSummary([invoice], new Date("2026-11-04T01:00:00Z"));
+  assert.equal(beforeMidnightInBrazil.dueTodayAmount, 90);
+  assert.equal(beforeMidnightInBrazil.overdueCount, 0);
+  assert.equal(buildReceivablesSummary([invoice], new Date("2026-11-04T03:00:00Z")).overdueAmount, 90);
+});

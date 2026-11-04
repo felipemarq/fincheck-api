@@ -949,6 +949,7 @@ export class PurchaseOrderRepository {
       result.get(delivery.purchaseOrderId)!.deliveryCount += 1;
     });
     invoiceRows.forEach((invoice) => {
+      if (!invoice.purchaseOrderId) return;
       result.get(invoice.purchaseOrderId)!.invoiceCount += 1;
     });
 
@@ -1169,6 +1170,7 @@ export class PurchaseOrderRepository {
     });
 
     issuedInvoices.forEach((invoice) => {
+      if (!invoice.purchaseOrderId) return;
       const data = result.get(invoice.purchaseOrderId)!;
       data.invoicedRevenue += Number(invoice.grossAmount);
       data.taxCost += Number(invoice.taxAmount);
@@ -1179,6 +1181,7 @@ export class PurchaseOrderRepository {
 
     invoiceItemRows.forEach((item) => {
       const invoice = invoiceById.get(item.invoiceId)!;
+      if (!invoice.purchaseOrderId || !item.purchaseOrderItemId) return;
       const data = result.get(invoice.purchaseOrderId)!;
       data.invoicedQuantityByItemId.set(
         item.purchaseOrderItemId,
@@ -1189,6 +1192,7 @@ export class PurchaseOrderRepository {
 
     paymentRows.forEach((payment) => {
       const invoice = invoiceById.get(payment.invoiceId)!;
+      if (!invoice.purchaseOrderId) return;
       const data = result.get(invoice.purchaseOrderId)!;
       data.receivedRevenue += Number(payment.amount);
       data.receivableBalance -= Number(payment.amount);

@@ -1,4 +1,4 @@
-import { Invoice, InvoiceItem } from "@application/entities/Invoice";
+import { Invoice } from "@application/entities/Invoice";
 import { PurchaseOrder } from "@application/entities/PurchaseOrder";
 import { BadRequestException } from "@application/errors/http/BadRequestException";
 import { ConflictException } from "@application/errors/http/ConflictException";
@@ -7,8 +7,10 @@ import {
   InvoiceView,
   toInvoiceView,
 } from "@application/queries/types/InvoiceView";
-import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { validateInvoice } from "@application/services/validateOperations";
+import { buildInvoiceItems, InvoiceItemInput } from "@application/services/buildInvoiceItems";
+import { CustomerRepository } from "@infra/database/neon/repositories/CustomerRepository";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { PurchaseOrderRepository } from "@infra/database/neon/repositories/PurchaseOrderRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
@@ -18,26 +20,27 @@ export class UpdateInvoiceUseCase {
   constructor(
     private readonly invoiceRepository: InvoiceRepository,
     private readonly purchaseOrderRepository: PurchaseOrderRepository,
-    private readonly organizationAccessService: OrganizationAccessService
+    private readonly financialAccessService: FinancialAccessService,
+    private readonly customerRepository: CustomerRepository
   ) {}
 
   async execute(input: UpdateInvoiceUseCase.Input): Promise<InvoiceView> {
-    await this.organizationAccessService.assertUserAccess(
+    await this.financialAccessService.assertUserAccess(
       input.entityId,
-      input.userId
+      input.userId,
+      "invoices.manage"
     );
 
-    const [orderRecord, current] = await Promise.all([
-      this.purchaseOrderRepository.findOne(input),
-      this.invoiceRepository.findOne(input),
-    ]);
-
-    if (!orderRecord) {
-      throw new NotFoundException("Ordem de compra nao encontrada.");
-    }
-
+    const current = await this.invoiceRepository.findOne(input);
     if (!current) {
       throw new NotFoundException("Nota fiscal nao encontrada.");
+    }
+
+    const orderRecord = current.purchaseOrderId
+      ? await this.purchaseOrderRepository.findOne({ entityId: input.entityId, purchaseOrderId: current.purchaseOrderId })
+      : null;
+    if (current.purchaseOrderId && !orderRecord) {
+      throw new NotFoundException("Ordem de compra nao encontrada.");
     }
 
     if (current.status === Invoice.Status.CANCELLED) {
@@ -47,7 +50,7 @@ export class UpdateInvoiceUseCase {
     }
 
     if (
-      orderRecord.order.lifecycleStatus !==
+      orderRecord && orderRecord.order.lifecycleStatus !==
       PurchaseOrder.LifecycleStatus.ACTIVE
     ) {
       throw new BadRequestException(
@@ -77,18 +80,21 @@ export class UpdateInvoiceUseCase {
       }
     }
 
+    const customerId = input.customerId ?? current.customerId ?? orderRecord?.order.customerId;
+    if (input.customerId) {
+      if (orderRecord && input.customerId !== orderRecord.order.customerId) {
+        throw new BadRequestException("O cliente da nota deve ser o mesmo da OC.");
+      }
+      if (!await this.customerRepository.findOne({ entityId: input.entityId, customerId: input.customerId })) {
+        throw new NotFoundException("Cliente nao encontrado nesta empresa.");
+      }
+    }
     const items = input.items
-      ? input.items.map(
-          (item) =>
-            new InvoiceItem({
-              ...item,
-              entityId: input.entityId,
-              invoiceId: current.id,
-            })
-        )
+      ? buildInvoiceItems(input.items, input.entityId, orderRecord?.order, current.id, current.items)
       : current.items;
     const updated = new Invoice({
       ...current,
+      customerId,
       id: current.id,
       updatedByUserId: input.userId,
       invoiceNumber,
@@ -107,20 +113,22 @@ export class UpdateInvoiceUseCase {
 
     if (updated.status !== Invoice.Status.CANCELLED) {
       const previous =
-        await this.invoiceRepository.getInvoicedQuantityByOrderItem({
-          ...input,
+        current.purchaseOrderId ? await this.invoiceRepository.getInvoicedQuantityByOrderItem({
+          entityId: input.entityId,
+          purchaseOrderId: current.purchaseOrderId,
           exceptInvoiceId: current.id,
-        });
-      validateInvoice(updated, orderRecord.order, previous);
+        }) : new Map<string, number>();
+      validateInvoice(updated, orderRecord?.order, previous);
     }
 
     const saved = await this.invoiceRepository.update(updated);
-    return toInvoiceView(saved, orderRecord.order.items);
+    return toInvoiceView(saved, orderRecord?.order.items);
   }
 
   private changesFinancialData(input: UpdateInvoiceUseCase.Input): boolean {
     return Boolean(
       input.invoiceNumber !== undefined ||
+        input.customerId !== undefined ||
         input.issuedAt !== undefined ||
         input.taxAmount !== undefined ||
         input.otherDeductions !== undefined ||
@@ -134,7 +142,8 @@ export namespace UpdateInvoiceUseCase {
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
+    customerId?: string;
     invoiceId: string;
     invoiceNumber?: string;
     issuedAt?: Date;
@@ -143,12 +152,6 @@ export namespace UpdateInvoiceUseCase {
     otherDeductions?: number;
     status?: Invoice.Status;
     notes?: string | null;
-    items?: Array<{
-      id?: string;
-      purchaseOrderItemId: string;
-      invoicedQuantity: number;
-      unitPrice: number;
-      notes?: string;
-    }>;
+    items?: InvoiceItemInput[];
   };
 }

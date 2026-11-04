@@ -85,6 +85,13 @@
       "when": 1791089025322,
       "tag": "0014_shopping-lists",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793740590109,
+      "tag": "0015_independent-invoices",
+      "breakpoints": true
     }
   ]
 }

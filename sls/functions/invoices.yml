@@ -3,6 +3,11 @@ createInvoice:
   memorySize: 512
   events:
     - httpApi:
+        path: /entities/{entityId}/invoices
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+    - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
         method: POST
         authorizer:
@@ -12,6 +17,11 @@ listInvoices:
   handler: src/main/functions/invoices/listInvoices.handler
   memorySize: 512
   events:
+    - httpApi:
+        path: /entities/{entityId}/invoices
+        method: GET
+        authorizer:
+          name: CognitoAuthorizer
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices
         method: GET
@@ -34,6 +44,11 @@ updateInvoice:
   memorySize: 512
   events:
     - httpApi:
+        path: /entities/{entityId}/invoices/{invoiceId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
+    - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}
         method: PATCH
         authorizer:
@@ -44,6 +59,11 @@ createReceivablePayment:
   memorySize: 512
   events:
     - httpApi:
+        path: /entities/{entityId}/invoices/{invoiceId}/payments
+        method: POST
+        authorizer:
+          name: CognitoAuthorizer
+    - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments
         method: POST
         authorizer:
@@ -53,6 +73,11 @@ updateReceivablePayment:
   handler: src/main/functions/invoices/updateReceivablePayment.handler
   memorySize: 512
   events:
+    - httpApi:
+        path: /entities/{entityId}/invoices/{invoiceId}/payments/{paymentId}
+        method: PATCH
+        authorizer:
+          name: CognitoAuthorizer
     - httpApi:
         path: /entities/{entityId}/purchase-orders/{purchaseOrderId}/invoices/{invoiceId}/payments/{paymentId}
         method: PATCH

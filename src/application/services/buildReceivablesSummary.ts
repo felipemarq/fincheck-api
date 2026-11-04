@@ -1,4 +1,5 @@
 import { Invoice } from "@application/entities/Invoice";
+import { financialCalendarDay } from "@shared/utils/financialCalendarDay";
 
 export type ReceivablesSummary = {
   totalCount: number;
@@ -22,17 +23,11 @@ export type ReceivablesSummary = {
 const roundMoney = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
 
-function startOfUtcDay(value: Date) {
-  return new Date(
-    Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())
-  );
-}
-
 export function buildReceivablesSummary(
   invoices: Invoice[],
   referenceDate = new Date()
 ): ReceivablesSummary {
-  const today = startOfUtcDay(referenceDate);
+  const today = financialCalendarDay(referenceDate);
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   const nextEightDays = new Date(today);

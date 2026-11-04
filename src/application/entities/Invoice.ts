@@ -1,3 +1,5 @@
+import { financialCalendarDay } from "@shared/utils/financialCalendarDay";
+
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -6,7 +8,10 @@ export class InvoiceItem {
   readonly id?: string;
   readonly entityId: string;
   readonly invoiceId?: string;
-  readonly purchaseOrderItemId: string;
+  readonly purchaseOrderItemId?: string;
+  readonly lineNumber?: number;
+  readonly description?: string;
+  readonly originalUnit?: string;
   readonly invoicedQuantity: number;
   readonly unitPrice: number;
   readonly notes?: string;
@@ -18,6 +23,9 @@ export class InvoiceItem {
     this.entityId = attributes.entityId;
     this.invoiceId = attributes.invoiceId;
     this.purchaseOrderItemId = attributes.purchaseOrderItemId;
+    this.lineNumber = attributes.lineNumber;
+    this.description = attributes.description;
+    this.originalUnit = attributes.originalUnit;
     this.invoicedQuantity = attributes.invoicedQuantity;
     this.unitPrice = attributes.unitPrice;
     this.notes = attributes.notes;
@@ -35,7 +43,10 @@ export namespace InvoiceItem {
     id?: string;
     entityId: string;
     invoiceId?: string;
-    purchaseOrderItemId: string;
+    purchaseOrderItemId?: string;
+    lineNumber?: number;
+    description?: string;
+    originalUnit?: string;
     invoicedQuantity: number;
     unitPrice: number;
     notes?: string;
@@ -47,7 +58,7 @@ export namespace InvoiceItem {
 export class ReceivablePayment {
   readonly id?: string;
   readonly entityId: string;
-  readonly purchaseOrderId: string;
+  readonly purchaseOrderId?: string;
   readonly invoiceId: string;
   readonly createdByUserId: string;
   readonly updatedByUserId: string;
@@ -92,7 +103,7 @@ export namespace ReceivablePayment {
   export type Attributes = {
     id?: string;
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     invoiceId: string;
     createdByUserId: string;
     updatedByUserId: string;
@@ -110,7 +121,8 @@ export namespace ReceivablePayment {
 export class Invoice {
   readonly id?: string;
   readonly entityId: string;
-  readonly purchaseOrderId: string;
+  readonly purchaseOrderId?: string;
+  readonly customerId?: string;
   readonly createdByUserId: string;
   readonly updatedByUserId: string;
   readonly invoiceNumber: string;
@@ -129,6 +141,7 @@ export class Invoice {
     this.id = attributes.id;
     this.entityId = attributes.entityId;
     this.purchaseOrderId = attributes.purchaseOrderId;
+    this.customerId = attributes.customerId;
     this.createdByUserId = attributes.createdByUserId;
     this.updatedByUserId = attributes.updatedByUserId;
     this.invoiceNumber = attributes.invoiceNumber;
@@ -189,7 +202,8 @@ export class Invoice {
       return Invoice.ReceivableStatus.PARTIALLY_RECEIVED;
     }
 
-    if (this.dueAt.getTime() < new Date().setHours(0, 0, 0, 0)) {
+    const today = financialCalendarDay();
+    if (this.dueAt.getTime() < today.getTime()) {
       return Invoice.ReceivableStatus.OVERDUE;
     }
 
@@ -216,7 +230,8 @@ export namespace Invoice {
   export type Attributes = {
     id?: string;
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
+    customerId?: string;
     createdByUserId: string;
     updatedByUserId: string;
     invoiceNumber: string;

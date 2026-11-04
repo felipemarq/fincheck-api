@@ -155,8 +155,8 @@ export function validateDelivery(
 
 export function validateInvoice(
   invoice: Invoice,
-  order: PurchaseOrder,
-  previouslyInvoicedByOrderItem: Map<string, number>
+  order?: PurchaseOrder,
+  previouslyInvoicedByOrderItem: Map<string, number> = new Map()
 ): void {
   if (invoice.items.length === 0) {
     throw new BadRequestException(
@@ -176,13 +176,25 @@ export function validateInvoice(
     );
   }
 
+  if (!order) {
+    invoice.items.forEach((item) => {
+      if (item.purchaseOrderItemId || !item.description?.trim() || !item.originalUnit?.trim()) {
+        throw new BadRequestException("Informe descricao e unidade para cada item da nota sem OC.");
+      }
+      if (item.invoicedQuantity <= 0 || item.unitPrice < 0) {
+        throw new BadRequestException("Quantidade e preco da nota devem possuir valores validos.");
+      }
+    });
+    return;
+  }
+
   const orderItemsById = new Map(order.items.map((item) => [item.id, item]));
   const seen = new Set<string>();
 
   invoice.items.forEach((item) => {
     const orderItem = orderItemsById.get(item.purchaseOrderItemId);
 
-    if (!orderItem) {
+    if (!orderItem || !item.purchaseOrderItemId) {
       throw new BadRequestException(
         "A nota possui um item que nao pertence a ordem."
       );

@@ -4,7 +4,7 @@ import {
 } from "@application/entities/Invoice";
 import { Injectable } from "@kernel/decorators/Injectable";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { DatabaseService } from "..";
 import { InvoiceMapper } from "../items/InvoiceItem";
@@ -18,7 +18,7 @@ import {
 
 export type InvoiceWithContext = {
   invoice: Invoice;
-  orderNumber: string;
+  orderNumber?: string;
   orderExternalNumber?: string;
   customerId: string;
   customerName: string;
@@ -61,8 +61,7 @@ export class InvoiceRepository {
         .where(
           and(
             eq(invoicesTable.id, invoice.id!),
-            eq(invoicesTable.entityId, invoice.entityId),
-            eq(invoicesTable.purchaseOrderId, invoice.purchaseOrderId)
+            eq(invoicesTable.entityId, invoice.entityId)
           )
         ),
       this.databaseService.db
@@ -92,7 +91,7 @@ export class InvoiceRepository {
     purchaseOrderId,
   }: {
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
   }): Promise<Invoice[]> {
     const rows = await this.databaseService.db
       .select()
@@ -100,7 +99,7 @@ export class InvoiceRepository {
       .where(
         and(
           eq(invoicesTable.entityId, entityId),
-          eq(invoicesTable.purchaseOrderId, purchaseOrderId)
+          purchaseOrderId ? eq(invoicesTable.purchaseOrderId, purchaseOrderId) : undefined
         )
       )
       .orderBy(desc(invoicesTable.issuedAt), desc(invoicesTable.createdAt));
@@ -154,7 +153,7 @@ export class InvoiceRepository {
         customer: customersTable,
       })
       .from(invoicesTable)
-      .innerJoin(
+      .leftJoin(
         purchaseOrdersTable,
         and(
           eq(purchaseOrdersTable.id, invoicesTable.purchaseOrderId),
@@ -164,7 +163,7 @@ export class InvoiceRepository {
       .innerJoin(
         customersTable,
         and(
-          eq(customersTable.id, purchaseOrdersTable.customerId),
+          eq(customersTable.id, sql`coalesce(${invoicesTable.customerId}, ${purchaseOrdersTable.customerId})`),
           eq(customersTable.entityId, invoicesTable.entityId)
         )
       )
@@ -205,8 +204,8 @@ export class InvoiceRepository {
         itemRows.filter((item) => item.invoiceId === invoice.id),
         paymentRows.filter((payment) => payment.invoiceId === invoice.id)
       ),
-      orderNumber: order.orderNumber,
-      orderExternalNumber: order.externalNumber ?? undefined,
+      orderNumber: order?.orderNumber,
+      orderExternalNumber: order?.externalNumber ?? undefined,
       customerId: customer.id,
       customerName: customer.tradeName || customer.legalName,
       customerDocument: customer.document,
@@ -219,7 +218,7 @@ export class InvoiceRepository {
     invoiceId,
   }: {
     entityId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     invoiceId: string;
   }): Promise<Invoice | null> {
     const [row] = await this.databaseService.db
@@ -229,7 +228,7 @@ export class InvoiceRepository {
         and(
           eq(invoicesTable.id, invoiceId),
           eq(invoicesTable.entityId, entityId),
-          eq(invoicesTable.purchaseOrderId, purchaseOrderId)
+          purchaseOrderId ? eq(invoicesTable.purchaseOrderId, purchaseOrderId) : undefined
         )
       )
       .limit(1);
@@ -298,6 +297,7 @@ export class InvoiceRepository {
     const totals = new Map<string, number>();
 
     rows.forEach(({ item }) => {
+      if (!item.purchaseOrderItemId) return;
       totals.set(
         item.purchaseOrderItemId,
         (totals.get(item.purchaseOrderItemId) ?? 0) +
@@ -338,7 +338,7 @@ export class InvoiceRepository {
 
     return this.findOne({
       entityId,
-      purchaseOrderId: row.purchaseOrderId,
+      purchaseOrderId: row.purchaseOrderId ?? undefined,
       invoiceId: row.id,
     });
   }

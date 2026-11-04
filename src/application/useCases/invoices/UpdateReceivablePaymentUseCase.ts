@@ -5,7 +5,7 @@ import {
   ReceivablePaymentView,
   toReceivablePaymentView,
 } from "@application/queries/types/InvoiceView";
-import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -13,15 +13,16 @@ import { Injectable } from "@kernel/decorators/Injectable";
 export class UpdateReceivablePaymentUseCase {
   constructor(
     private readonly invoiceRepository: InvoiceRepository,
-    private readonly organizationAccessService: OrganizationAccessService
+    private readonly financialAccessService: FinancialAccessService
   ) {}
 
   async execute(
     input: UpdateReceivablePaymentUseCase.Input
   ): Promise<ReceivablePaymentView> {
-    await this.organizationAccessService.assertUserAccess(
+    await this.financialAccessService.assertUserAccess(
       input.entityId,
-      input.userId
+      input.userId,
+      "payments.manage"
     );
 
     const [invoice, current] = await Promise.all([
@@ -84,7 +85,7 @@ export namespace UpdateReceivablePaymentUseCase {
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     invoiceId: string;
     paymentId: string;
     receivedAt?: Date;

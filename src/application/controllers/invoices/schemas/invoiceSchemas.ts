@@ -2,7 +2,6 @@ import {
   Invoice,
   ReceivablePayment,
 } from "@application/entities/Invoice";
-import { purchaseOrderParamsSchema } from "@application/controllers/purchaseOrders/schemas/purchaseOrderSchemas";
 import {
   nullableOptionalString,
   optionalDate,
@@ -10,13 +9,16 @@ import {
 } from "@application/controllers/v2Schemas";
 import { z } from "zod";
 
-const moneySchema = z.coerce.number().nonnegative().max(9_999_999_999);
+const priceSchema = z.coerce.number().nonnegative().max(9_999_999_999).multipleOf(0.000001);
+const moneySchema = z.coerce.number().nonnegative().max(9_999_999_999).multipleOf(0.01);
 
 const invoiceItemSchema = z.object({
   id: z.string().uuid().optional(),
-  purchaseOrderItemId: z.string().uuid(),
-  invoicedQuantity: z.coerce.number().positive().max(99_999_999_999),
-  unitPrice: moneySchema,
+  purchaseOrderItemId: z.string().uuid().optional(),
+  description: optionalString(4000),
+  originalUnit: optionalString(40),
+  invoicedQuantity: z.coerce.number().positive().max(99_999_999_999).multipleOf(0.001),
+  unitPrice: priceSchema,
   notes: optionalString(4000),
 });
 
@@ -25,6 +27,8 @@ const invoiceItemsSchema = z
   .min(1, "A nota deve possuir ao menos um item.");
 
 export const createInvoiceSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  purchaseOrderId: z.string().uuid().optional(),
   invoiceNumber: z.string().trim().min(1).max(120),
   issuedAt: z.coerce.date(),
   dueAt: z.coerce.date(),
@@ -37,6 +41,7 @@ export const createInvoiceSchema = z.object({
 
 export const updateInvoiceSchema = z
   .object({
+    customerId: z.string().uuid().optional(),
     invoiceNumber: z.string().trim().min(1).max(120).optional(),
     issuedAt: optionalDate,
     dueAt: optionalDate,
@@ -52,7 +57,7 @@ export const updateInvoiceSchema = z
 
 export const createReceivablePaymentSchema = z.object({
   receivedAt: z.coerce.date(),
-  amount: z.coerce.number().positive().max(9_999_999_999),
+  amount: z.coerce.number().positive().max(9_999_999_999).multipleOf(0.01),
   paymentMethod: z.string().trim().min(1).max(80),
   reference: optionalString(160),
   notes: optionalString(4000),
@@ -61,7 +66,7 @@ export const createReceivablePaymentSchema = z.object({
 export const updateReceivablePaymentSchema = z
   .object({
     receivedAt: optionalDate,
-    amount: z.coerce.number().positive().max(9_999_999_999).optional(),
+    amount: z.coerce.number().positive().max(9_999_999_999).multipleOf(0.01).optional(),
     paymentMethod: z.string().trim().min(1).max(80).optional(),
     reference: nullableOptionalString(160),
     status: z.nativeEnum(ReceivablePayment.Status).optional(),
@@ -71,7 +76,12 @@ export const updateReceivablePaymentSchema = z
     message: "Informe ao menos um campo para atualizar.",
   });
 
-export const invoiceParamsSchema = purchaseOrderParamsSchema.extend({
+export const invoiceCollectionParamsSchema = z.object({
+  entityId: z.string().uuid(),
+  purchaseOrderId: z.string().uuid().optional(),
+});
+
+export const invoiceParamsSchema = invoiceCollectionParamsSchema.extend({
   invoiceId: z.string().uuid(),
 });
 
@@ -80,6 +90,7 @@ export const receivablePaymentParamsSchema = invoiceParamsSchema.extend({
 });
 
 export type CreateInvoiceBody = z.infer<typeof createInvoiceSchema>;
+export type InvoiceCollectionParams = z.infer<typeof invoiceCollectionParamsSchema>;
 export type UpdateInvoiceBody = z.infer<typeof updateInvoiceSchema>;
 export type CreateReceivablePaymentBody = z.infer<
   typeof createReceivablePaymentSchema

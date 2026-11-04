@@ -1,8 +1,8 @@
 import { Controller } from "@application/contracts/Controller";
 import {
-  PurchaseOrderParams,
-  purchaseOrderParamsSchema,
-} from "@application/controllers/purchaseOrders/schemas/purchaseOrderSchemas";
+  InvoiceCollectionParams,
+  invoiceCollectionParamsSchema,
+} from "./schemas/invoiceSchemas";
 import { InvoiceView } from "@application/queries/types/InvoiceView";
 import { CreateInvoiceUseCase } from "@application/useCases/invoices/CreateInvoiceUseCase";
 import { Injectable } from "@kernel/decorators/Injectable";
@@ -29,12 +29,13 @@ export class CreateInvoiceController extends Controller<
   }: Controller.Request<
     "private",
     CreateInvoiceBody,
-    PurchaseOrderParams
+    InvoiceCollectionParams
   >) {
-    const route = purchaseOrderParamsSchema.parse(params);
+    const route = invoiceCollectionParamsSchema.parse(params);
     const invoice = await this.useCase.execute({
       ...body,
       ...route,
+      purchaseOrderId: route.purchaseOrderId ?? body.purchaseOrderId,
       userId,
     });
 

@@ -6,7 +6,7 @@ import { PurchaseOrderItem } from "@application/entities/PurchaseOrder";
 
 export type InvoiceItemView = {
   id?: string;
-  purchaseOrderItemId: string;
+  purchaseOrderItemId?: string;
   lineNumber: number;
   description: string;
   originalUnit: string;
@@ -31,7 +31,8 @@ export type ReceivablePaymentView = {
 export type InvoiceView = {
   id?: string;
   entityId: string;
-  purchaseOrderId: string;
+  purchaseOrderId?: string;
+  customerId?: string;
   invoiceNumber: string;
   issuedAt: Date;
   dueAt: Date;
@@ -68,7 +69,7 @@ export function toReceivablePaymentView(
 
 export function toInvoiceView(
   invoice: Invoice,
-  purchaseOrderItems: PurchaseOrderItem[]
+  purchaseOrderItems: PurchaseOrderItem[] = []
 ): InvoiceView {
   const orderItemsById = new Map(
     purchaseOrderItems.map((item) => [item.id, item])
@@ -78,6 +79,7 @@ export function toInvoiceView(
     id: invoice.id,
     entityId: invoice.entityId,
     purchaseOrderId: invoice.purchaseOrderId,
+    customerId: invoice.customerId,
     invoiceNumber: invoice.invoiceNumber,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt,
@@ -90,10 +92,10 @@ export function toInvoiceView(
     status: invoice.status,
     receivableStatus: invoice.receivableStatus,
     notes: invoice.notes,
-    items: invoice.items.map((item) => {
+    items: invoice.items.map((item, index) => {
       const orderItem = orderItemsById.get(item.purchaseOrderItemId);
 
-      if (!orderItem) {
+      if (!orderItem && !item.description) {
         throw new Error(
           `Item ${item.purchaseOrderItemId} nao encontrado na nota.`
         );
@@ -102,9 +104,9 @@ export function toInvoiceView(
       return {
         id: item.id,
         purchaseOrderItemId: item.purchaseOrderItemId,
-        lineNumber: orderItem.lineNumber,
-        description: orderItem.description,
-        originalUnit: orderItem.originalUnit,
+        lineNumber: item.lineNumber ?? orderItem?.lineNumber ?? index + 1,
+        description: item.description ?? orderItem!.description,
+        originalUnit: item.originalUnit ?? orderItem?.originalUnit ?? "UN",
         invoicedQuantity: item.invoicedQuantity,
         unitPrice: item.unitPrice,
         totalAmount: item.totalAmount,

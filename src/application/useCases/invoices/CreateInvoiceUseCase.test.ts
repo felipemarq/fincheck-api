@@ -79,7 +79,8 @@ test("cria uma segunda nota usando apenas o saldo ainda nao faturado", async () 
       },
     } as never,
     { findOne: async () => ({ order }) } as never,
-    { assertUserAccess: async () => undefined } as never
+    { assertUserAccess: async () => undefined } as never,
+    {} as never
   );
 
   const result = await useCase.execute({

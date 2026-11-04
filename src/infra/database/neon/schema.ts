@@ -1,4 +1,4 @@
-import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum, date } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, uuid, varchar, timestamp, text, numeric, integer, unique, uniqueIndex, boolean, primaryKey, pgEnum, date, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 export const shoppingListsTable = pgTable("shopping_lists", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -158,7 +158,7 @@ export const dailyCalorieEntriesTable = pgTable("daily_calorie_entries", {
 export const receivablePaymentsTable = pgTable("receivable_payments", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
-	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id"),
 	invoiceId: uuid("invoice_id").notNull(),
 	createdByUserId: uuid("created_by_user_id").notNull(),
 	updatedByUserId: uuid("updated_by_user_id").notNull(),
@@ -650,7 +650,8 @@ export const purchaseOrdersTable = pgTable("purchase_orders", {
 export const invoicesTable = pgTable("invoices", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
-	purchaseOrderId: uuid("purchase_order_id").notNull(),
+	purchaseOrderId: uuid("purchase_order_id"),
+	customerId: uuid("customer_id").references(() => customersTable.id, { onDelete: "restrict" }),
 	createdByUserId: uuid("created_by_user_id").notNull(),
 	updatedByUserId: uuid("updated_by_user_id").notNull(),
 	invoiceNumber: varchar("invoice_number", { length: 120 }).notNull(),
@@ -668,6 +669,8 @@ export const invoicesTable = pgTable("invoices", {
 	index("invoices_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("invoices_number_uq").using("btree", table.entityId.asc().nullsLast().op("uuid_ops"), table.invoiceNumber.asc().nullsLast().op("uuid_ops")),
 	index("invoices_order_idx").using("btree", table.purchaseOrderId.asc().nullsLast().op("uuid_ops")),
+	index("invoices_customer_idx").on(table.entityId, table.customerId),
+	check("invoices_customer_required", sql`${table.customerId} is not null or ${table.purchaseOrderId} is not null`),
 	foreignKey({
 			columns: [table.entityId],
 			foreignColumns: [entitiesTable.id],
@@ -733,7 +736,10 @@ export const invoiceItemsTable = pgTable("invoice_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	entityId: uuid("entity_id").notNull(),
 	invoiceId: uuid("invoice_id").notNull(),
-	purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+	purchaseOrderItemId: uuid("purchase_order_item_id"),
+	lineNumber: integer("line_number"),
+	description: text(),
+	originalUnit: varchar("original_unit", { length: 40 }),
 	invoicedQuantity: numeric("invoiced_quantity", { precision: 14, scale:  3 }).notNull(),
 	unitPrice: numeric("unit_price", { precision: 16, scale:  6 }).notNull(),
 	totalAmount: numeric("total_amount", { precision: 16, scale:  2 }).notNull(),
@@ -741,6 +747,7 @@ export const invoiceItemsTable = pgTable("invoice_items", {
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
+	check("invoice_items_description_required", sql`${table.purchaseOrderItemId} is not null or (length(trim(${table.description})) > 0 and length(trim(${table.originalUnit})) > 0 and ${table.description} is not null and ${table.originalUnit} is not null)`),
 	index("invoice_items_entity_idx").using("btree", table.entityId.asc().nullsLast().op("uuid_ops")),
 	index("invoice_items_invoice_idx").using("btree", table.invoiceId.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("invoice_items_item_uq").using("btree", table.invoiceId.asc().nullsLast().op("uuid_ops"), table.purchaseOrderItemId.asc().nullsLast().op("uuid_ops")),

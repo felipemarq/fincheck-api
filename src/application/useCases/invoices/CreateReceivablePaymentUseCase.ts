@@ -8,7 +8,7 @@ import {
   ReceivablePaymentView,
   toReceivablePaymentView,
 } from "@application/queries/types/InvoiceView";
-import { OrganizationAccessService } from "@application/services/OrganizationAccessService";
+import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
 import { Injectable } from "@kernel/decorators/Injectable";
 
@@ -16,15 +16,16 @@ import { Injectable } from "@kernel/decorators/Injectable";
 export class CreateReceivablePaymentUseCase {
   constructor(
     private readonly invoiceRepository: InvoiceRepository,
-    private readonly organizationAccessService: OrganizationAccessService
+    private readonly financialAccessService: FinancialAccessService
   ) {}
 
   async execute(
     input: CreateReceivablePaymentUseCase.Input
   ): Promise<ReceivablePaymentView> {
-    await this.organizationAccessService.assertUserAccess(
+    await this.financialAccessService.assertUserAccess(
       input.entityId,
-      input.userId
+      input.userId,
+      "payments.manage"
     );
 
     const invoice = await this.invoiceRepository.findOne(input);
@@ -47,6 +48,7 @@ export class CreateReceivablePaymentUseCase {
 
     const payment = new ReceivablePayment({
       ...input,
+      purchaseOrderId: invoice.purchaseOrderId,
       createdByUserId: input.userId,
       updatedByUserId: input.userId,
     });
@@ -60,7 +62,7 @@ export namespace CreateReceivablePaymentUseCase {
   export type Input = {
     entityId: string;
     userId: string;
-    purchaseOrderId: string;
+    purchaseOrderId?: string;
     invoiceId: string;
     receivedAt: Date;
     amount: number;
