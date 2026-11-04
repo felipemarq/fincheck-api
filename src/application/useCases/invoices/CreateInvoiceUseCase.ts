@@ -9,6 +9,7 @@ import {
 } from "@application/queries/types/InvoiceView";
 import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { validateInvoice } from "@application/services/validateOperations";
+import { validateInvoiceReference } from "@application/services/validateInvoiceReference";
 import { buildInvoiceItems, InvoiceItemInput } from "@application/services/buildInvoiceItems";
 import { CustomerRepository } from "@infra/database/neon/repositories/CustomerRepository";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
@@ -81,6 +82,8 @@ export class CreateInvoiceUseCase {
         : new Map<string, number>();
 
     validateInvoice(invoice, orderRecord?.order, previous);
+    if (!invoice.isSale && input.purchaseOrderId) throw new BadRequestException("Cadastre devolucoes como notas avulsas.");
+    await validateInvoiceReference(invoice, this.invoiceRepository);
 
     const created = await this.invoiceRepository.create(invoice);
     return toInvoiceView(created, orderRecord?.order.items);
@@ -93,6 +96,8 @@ export namespace CreateInvoiceUseCase {
     userId: string;
     purchaseOrderId?: string;
     customerId?: string;
+    operationType?: Invoice.OperationType;
+    referencedInvoiceId?: string;
     invoiceNumber: string;
     issuedAt: Date;
     dueAt: Date;

@@ -9,6 +9,7 @@ import {
 } from "@application/queries/types/InvoiceView";
 import { FinancialAccessService } from "@application/services/FinancialAccessService";
 import { validateInvoice } from "@application/services/validateOperations";
+import { validateInvoiceReference } from "@application/services/validateInvoiceReference";
 import { buildInvoiceItems, InvoiceItemInput } from "@application/services/buildInvoiceItems";
 import { CustomerRepository } from "@infra/database/neon/repositories/CustomerRepository";
 import { InvoiceRepository } from "@infra/database/neon/repositories/InvoiceRepository";
@@ -58,9 +59,9 @@ export class UpdateInvoiceUseCase {
       );
     }
 
-    if (current.receivedAmount > 0 && this.changesFinancialData(input)) {
+    if ((current.receivedAmount > 0 || current.returnedAmount > 0) && this.changesFinancialData(input)) {
       throw new BadRequestException(
-        "Uma nota com recebimentos permite alterar apenas vencimento e observacoes."
+        "Uma nota com recebimentos ou devolucoes permite alterar apenas vencimento e observacoes."
       );
     }
 
@@ -95,6 +96,8 @@ export class UpdateInvoiceUseCase {
     const updated = new Invoice({
       ...current,
       customerId,
+      operationType: input.operationType ?? current.operationType,
+      referencedInvoiceId: input.referencedInvoiceId === null ? undefined : input.referencedInvoiceId ?? current.referencedInvoiceId,
       id: current.id,
       updatedByUserId: input.userId,
       invoiceNumber,
@@ -121,6 +124,8 @@ export class UpdateInvoiceUseCase {
       validateInvoice(updated, orderRecord?.order, previous);
     }
 
+    if (!updated.isSale && updated.purchaseOrderId) throw new BadRequestException("Cadastre devolucoes como notas avulsas.");
+    await validateInvoiceReference(updated, this.invoiceRepository, current);
     const saved = await this.invoiceRepository.update(updated);
     return toInvoiceView(saved, orderRecord?.order.items);
   }
@@ -129,6 +134,8 @@ export class UpdateInvoiceUseCase {
     return Boolean(
       input.invoiceNumber !== undefined ||
         input.customerId !== undefined ||
+        input.operationType !== undefined ||
+        input.referencedInvoiceId !== undefined ||
         input.issuedAt !== undefined ||
         input.taxAmount !== undefined ||
         input.otherDeductions !== undefined ||
@@ -144,6 +151,8 @@ export namespace UpdateInvoiceUseCase {
     userId: string;
     purchaseOrderId?: string;
     customerId?: string;
+    operationType?: Invoice.OperationType;
+    referencedInvoiceId?: string | null;
     invoiceId: string;
     invoiceNumber?: string;
     issuedAt?: Date;

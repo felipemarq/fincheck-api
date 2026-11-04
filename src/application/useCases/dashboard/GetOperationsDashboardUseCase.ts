@@ -124,10 +124,10 @@ export class GetOperationsDashboardUseCase {
     // Fiscal totals follow the invoice issuance period, including invoices without an OC
     // and invoices of archived/completed OCs. Operational margins remain OC based.
     invoiceRecords.forEach(({ invoice }) => {
-      if (invoice.status !== Invoice.Status.ISSUED) return;
+      if (invoice.status !== Invoice.Status.ISSUED || !invoice.isSale) return;
       if (issuedRange.dateFrom && invoice.issuedAt < issuedRange.dateFrom) return;
       if (issuedRange.dateBefore && invoice.issuedAt >= issuedRange.dateBefore) return;
-      financial.invoicedRevenue += invoice.grossAmount;
+      financial.invoicedRevenue += Math.max(invoice.grossAmount - invoice.returnedAmount, 0);
       financial.taxCost += invoice.taxAmount;
       financial.otherDeductions += invoice.otherDeductions;
       financial.receivedRevenue += invoice.receivedAmount;

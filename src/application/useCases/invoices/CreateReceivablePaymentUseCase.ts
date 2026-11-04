@@ -34,7 +34,7 @@ export class CreateReceivablePaymentUseCase {
       throw new NotFoundException("Nota fiscal nao encontrada.");
     }
 
-    if (invoice.status !== Invoice.Status.ISSUED) {
+    if (invoice.status !== Invoice.Status.ISSUED || !invoice.isSale) {
       throw new BadRequestException(
         "Somente notas emitidas aceitam recebimentos."
       );

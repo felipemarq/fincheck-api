@@ -62,6 +62,8 @@ function matchesStatus(
 }
 
 const urgencyRank: Record<Invoice.ReceivableStatus, number> = {
+  [Invoice.ReceivableStatus.NOT_APPLICABLE]: 6,
+  [Invoice.ReceivableStatus.RETURNED]: 6,
   [Invoice.ReceivableStatus.OVERDUE]: 0,
   [Invoice.ReceivableStatus.PARTIALLY_RECEIVED]: 1,
   [Invoice.ReceivableStatus.OPEN]: 2,

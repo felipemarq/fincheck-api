@@ -20,7 +20,7 @@ export async function invoiceTestFixture() {
   const pg = new PGlite();
   const migration = "0015_independent-invoices.sql";
   for (const file of readdirSync("drizzle")
-    .filter((file) => file.endsWith(".sql") && file !== migration)
+    .filter((file) => file.endsWith(".sql") && file < migration)
     .sort()) {
     await pg.exec(readFileSync(`drizzle/${file}`, "utf8"));
   }
@@ -78,6 +78,7 @@ export async function invoiceTestFixture() {
     [legacyPaymentId, entityId, orderId, legacyInvoiceId, userId],
   );
   await pg.exec(readFileSync(`drizzle/${migration}`, "utf8"));
+  await pg.exec(readFileSync("drizzle/0016_invoice-returns.sql", "utf8"));
   const db = drizzle(pg);
   Object.assign(db, {
     batch: (queries: Array<{ toSQL(): { sql: string; params: unknown[] } }>) =>

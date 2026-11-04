@@ -123,6 +123,9 @@ export class Invoice {
   readonly entityId: string;
   readonly purchaseOrderId?: string;
   readonly customerId?: string;
+  readonly operationType: Invoice.OperationType;
+  readonly referencedInvoiceId?: string;
+  readonly returnedAmount: number;
   readonly createdByUserId: string;
   readonly updatedByUserId: string;
   readonly invoiceNumber: string;
@@ -142,6 +145,9 @@ export class Invoice {
     this.entityId = attributes.entityId;
     this.purchaseOrderId = attributes.purchaseOrderId;
     this.customerId = attributes.customerId;
+    this.operationType = attributes.operationType ?? Invoice.OperationType.SALE;
+    this.referencedInvoiceId = attributes.referencedInvoiceId;
+    this.returnedAmount = attributes.returnedAmount ?? 0;
     this.createdByUserId = attributes.createdByUserId;
     this.updatedByUserId = attributes.updatedByUserId;
     this.invoiceNumber = attributes.invoiceNumber;
@@ -163,11 +169,19 @@ export class Invoice {
     );
   }
 
-  get netReceivableAmount(): number {
+  get documentAmount(): number {
     return Math.max(
       roundMoney(this.grossAmount - this.otherDeductions),
       0
     );
+  }
+
+  get isSale(): boolean {
+    return this.operationType === Invoice.OperationType.SALE;
+  }
+
+  get netReceivableAmount(): number {
+    return this.isSale ? Math.max(roundMoney(this.documentAmount - this.returnedAmount), 0) : 0;
   }
 
   get receivedAmount(): number {
@@ -194,6 +208,9 @@ export class Invoice {
       return Invoice.ReceivableStatus.NOT_ISSUED;
     }
 
+    if (!this.isSale) return Invoice.ReceivableStatus.NOT_APPLICABLE;
+    if (this.returnedAmount > 0 && this.netReceivableAmount <= 0) return Invoice.ReceivableStatus.RETURNED;
+
     if (this.outstandingAmount <= 0) {
       return Invoice.ReceivableStatus.RECEIVED;
     }
@@ -212,6 +229,11 @@ export class Invoice {
 }
 
 export namespace Invoice {
+  export enum OperationType {
+    SALE = "SALE",
+    SALES_RETURN = "SALES_RETURN",
+    PURCHASE_RETURN = "PURCHASE_RETURN",
+  }
   export enum Status {
     DRAFT = "DRAFT",
     ISSUED = "ISSUED",
@@ -219,6 +241,8 @@ export namespace Invoice {
   }
 
   export enum ReceivableStatus {
+    NOT_APPLICABLE = "NOT_APPLICABLE",
+    RETURNED = "RETURNED",
     NOT_ISSUED = "NOT_ISSUED",
     OPEN = "OPEN",
     OVERDUE = "OVERDUE",
@@ -232,6 +256,9 @@ export namespace Invoice {
     entityId: string;
     purchaseOrderId?: string;
     customerId?: string;
+    operationType?: OperationType;
+    referencedInvoiceId?: string;
+    returnedAmount?: number;
     createdByUserId: string;
     updatedByUserId: string;
     invoiceNumber: string;

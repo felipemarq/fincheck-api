@@ -63,11 +63,12 @@ export function buildReceivablesSummary(
     }
 
     summary.issuedCount += 1;
+    if (!invoice.isSale) return;
     summary.billedAmount += invoice.netReceivableAmount;
     summary.receivedAmount += invoice.receivedAmount;
 
     if (invoice.outstandingAmount <= 0) {
-      summary.receivedCount += 1;
+      if (invoice.returnedAmount < invoice.documentAmount || invoice.receivedAmount > 0) summary.receivedCount += 1;
       return;
     }
 

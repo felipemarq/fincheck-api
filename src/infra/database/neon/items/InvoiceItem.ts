@@ -16,13 +16,17 @@ export class InvoiceMapper {
   static fromRows(
     row: InvoiceRow,
     itemRows: InvoiceItemRow[],
-    paymentRows: ReceivablePaymentRow[]
+    paymentRows: ReceivablePaymentRow[],
+    returnedAmount = 0
   ): Invoice {
     return new Invoice({
       id: row.id,
       entityId: row.entityId,
       purchaseOrderId: row.purchaseOrderId ?? undefined,
       customerId: row.customerId ?? undefined,
+      operationType: row.operationType as Invoice.OperationType,
+      referencedInvoiceId: row.referencedInvoiceId ?? undefined,
+      returnedAmount,
       createdByUserId: row.createdByUserId,
       updatedByUserId: row.updatedByUserId,
       invoiceNumber: row.invoiceNumber,
@@ -47,6 +51,8 @@ export class InvoiceMapper {
       entityId: invoice.entityId,
       purchaseOrderId: invoice.purchaseOrderId,
       customerId: invoice.customerId ?? null,
+      operationType: invoice.operationType,
+      referencedInvoiceId: invoice.referencedInvoiceId ?? null,
       createdByUserId: invoice.createdByUserId,
       updatedByUserId: invoice.updatedByUserId,
       invoiceNumber: invoice.invoiceNumber,

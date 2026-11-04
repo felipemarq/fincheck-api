@@ -28,6 +28,8 @@ const invoiceItemsSchema = z
 
 export const createInvoiceSchema = z.object({
   customerId: z.string().uuid().optional(),
+  operationType: z.nativeEnum(Invoice.OperationType).optional(),
+  referencedInvoiceId: z.string().uuid().optional(),
   purchaseOrderId: z.string().uuid().optional(),
   invoiceNumber: z.string().trim().min(1).max(120),
   issuedAt: z.coerce.date(),
@@ -42,6 +44,8 @@ export const createInvoiceSchema = z.object({
 export const updateInvoiceSchema = z
   .object({
     customerId: z.string().uuid().optional(),
+    operationType: z.nativeEnum(Invoice.OperationType).optional(),
+    referencedInvoiceId: z.string().uuid().nullable().optional(),
     invoiceNumber: z.string().trim().min(1).max(120).optional(),
     issuedAt: optionalDate,
     dueAt: optionalDate,

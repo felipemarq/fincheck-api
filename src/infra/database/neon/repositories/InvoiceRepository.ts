@@ -29,6 +29,20 @@ export type InvoiceWithContext = {
 export class InvoiceRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
+  private async returnedAmounts(entityId: string, invoiceIds: string[]): Promise<Map<string, number>> {
+    if (!invoiceIds.length) return new Map();
+    const rows = await this.databaseService.db.select({
+      invoiceId: invoicesTable.referencedInvoiceId,
+      amount: sql<string>`sum(${invoicesTable.grossAmount} - ${invoicesTable.otherDeductions})`,
+    }).from(invoicesTable).where(and(
+      eq(invoicesTable.entityId, entityId),
+      eq(invoicesTable.operationType, Invoice.OperationType.SALES_RETURN),
+      eq(invoicesTable.status, Invoice.Status.ISSUED),
+      inArray(invoicesTable.referencedInvoiceId, invoiceIds),
+    )).groupBy(invoicesTable.referencedInvoiceId);
+    return new Map(rows.flatMap(row => row.invoiceId ? [[row.invoiceId, Number(row.amount)] as const] : []));
+  }
+
   async create(invoice: Invoice): Promise<Invoice> {
     const invoiceId = invoice.id ?? randomUUID();
 
@@ -109,7 +123,7 @@ export class InvoiceRepository {
     }
 
     const invoiceIds = rows.map((row) => row.id);
-    const [itemRows, paymentRows] = await Promise.all([
+    const [itemRows, paymentRows, returned] = await Promise.all([
       this.databaseService.db
         .select()
         .from(invoiceItemsTable)
@@ -130,13 +144,15 @@ export class InvoiceRepository {
           )
         )
         .orderBy(desc(receivablePaymentsTable.receivedAt)),
+      this.returnedAmounts(entityId, invoiceIds),
     ]);
 
     return rows.map((row) =>
       InvoiceMapper.fromRows(
         row,
         itemRows.filter((item) => item.invoiceId === row.id),
-        paymentRows.filter((payment) => payment.invoiceId === row.id)
+        paymentRows.filter((payment) => payment.invoiceId === row.id),
+        returned.get(row.id) ?? 0
       )
     );
   }
@@ -175,7 +191,7 @@ export class InvoiceRepository {
     }
 
     const invoiceIds = rows.map(({ invoice }) => invoice.id);
-    const [itemRows, paymentRows] = await Promise.all([
+    const [itemRows, paymentRows, returned] = await Promise.all([
       this.databaseService.db
         .select()
         .from(invoiceItemsTable)
@@ -196,13 +212,15 @@ export class InvoiceRepository {
           )
         )
         .orderBy(desc(receivablePaymentsTable.receivedAt)),
+      this.returnedAmounts(entityId, invoiceIds),
     ]);
 
     return rows.map(({ invoice, order, customer }) => ({
       invoice: InvoiceMapper.fromRows(
         invoice,
         itemRows.filter((item) => item.invoiceId === invoice.id),
-        paymentRows.filter((payment) => payment.invoiceId === invoice.id)
+        paymentRows.filter((payment) => payment.invoiceId === invoice.id),
+        returned.get(invoice.id) ?? 0
       ),
       orderNumber: order?.orderNumber,
       orderExternalNumber: order?.externalNumber ?? undefined,
@@ -237,7 +255,7 @@ export class InvoiceRepository {
       return null;
     }
 
-    const [itemRows, paymentRows] = await Promise.all([
+    const [itemRows, paymentRows, returned] = await Promise.all([
       this.databaseService.db
         .select()
         .from(invoiceItemsTable)
@@ -258,9 +276,10 @@ export class InvoiceRepository {
           )
         )
         .orderBy(desc(receivablePaymentsTable.receivedAt)),
+      this.returnedAmounts(entityId, [invoiceId]),
     ]);
 
-    return InvoiceMapper.fromRows(row, itemRows, paymentRows);
+    return InvoiceMapper.fromRows(row, itemRows, paymentRows, returned.get(invoiceId) ?? 0);
   }
 
   async getInvoicedQuantityByOrderItem({
@@ -276,6 +295,7 @@ export class InvoiceRepository {
       eq(invoicesTable.entityId, entityId),
       eq(invoicesTable.purchaseOrderId, purchaseOrderId),
       ne(invoicesTable.status, "CANCELLED"),
+      eq(invoicesTable.operationType, Invoice.OperationType.SALE),
     ];
 
     if (exceptInvoiceId) {

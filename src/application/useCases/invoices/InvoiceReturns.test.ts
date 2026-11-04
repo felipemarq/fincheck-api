@@ -1,0 +1,37 @@
+import "reflect-metadata";
+import assert from "node:assert/strict";
+import test from "node:test";
+import { Invoice } from "@application/entities/Invoice";
+import { invoiceTestFixture } from "./invoiceTestFixture";
+
+test("devoluções conservam o documento fiscal e abatem somente a venda vinculada", async t=>{
+  const f=await invoiceTestFixture();t.after(()=>f.pg.close());
+  const context={entityId:f.entityId,userId:f.userId};
+  const input=(invoiceNumber:string,patch={})=>({...context,customerId:f.customerId,invoiceNumber,issuedAt:new Date('2026-11-03T12:00:00Z'),dueAt:new Date('2026-12-03T12:00:00Z'),status:Invoice.Status.ISSUED,items:[{description:'Produto fiscal',originalUnit:'UN',invoicedQuantity:1,unitPrice:100}],...patch});
+  const sale=await f.create.execute(input('VENDA'));
+  const first=await f.create.execute(input('DEVOLUCAO-1',{operationType:Invoice.OperationType.SALES_RETURN,referencedInvoiceId:sale.id,items:[{description:'Parte devolvida',originalUnit:'UN',invoicedQuantity:1,unitPrice:40}]}));
+  assert.equal(first.documentAmount,40);assert.equal(first.netReceivableAmount,0);assert.equal(first.receivableStatus,Invoice.ReceivableStatus.NOT_APPLICABLE);
+  let source=await f.invoices.findOne({...context,invoiceId:sale.id!});
+  assert.equal(source!.returnedAmount,40);assert.equal(source!.outstandingAmount,60);
+  await assert.rejects(()=>f.receive.execute({...context,invoiceId:first.id!,receivedAt:new Date(),amount:1,paymentMethod:'PIX'}),/Somente notas emitidas/);
+  await assert.rejects(()=>f.create.execute(input('EXCESSO',{operationType:Invoice.OperationType.SALES_RETURN,referencedInvoiceId:sale.id})),/ultrapassa o saldo/);
+  await assert.rejects(()=>f.create.execute(input('OUTRA-EMPRESA',{operationType:Invoice.OperationType.SALES_RETURN,referencedInvoiceId:f.otherCustomerId})),/mesmo cliente e empresa/);
+  await assert.rejects(()=>f.update.execute({...context,invoiceId:sale.id!,status:Invoice.Status.CANCELLED}),/devolucoes/);
+  const second=await f.create.execute(input('DEVOLUCAO-2',{operationType:Invoice.OperationType.SALES_RETURN,referencedInvoiceId:sale.id,items:[{description:'Saldo devolvido',originalUnit:'UN',invoicedQuantity:1,unitPrice:60}]}));
+  source=await f.invoices.findOne({...context,invoiceId:sale.id!});
+  assert.equal(source!.documentAmount,100);assert.equal(source!.outstandingAmount,0);assert.equal(source!.receivableStatus,Invoice.ReceivableStatus.RETURNED);assert.equal(source!.receivedAmount,0);
+  const page=await f.receivables.execute({...context,status:'ALL',sort:'URGENCY',page:1,pageSize:50});
+  assert.equal(page.summary.billedAmount,200);assert.equal(page.summary.receivedAmount,40);assert.equal(page.summary.receivedCount,0);
+  assert.equal((await f.receivables.execute({...context,status:Invoice.ReceivableStatus.RETURNED,sort:'URGENCY',page:1,pageSize:50})).pagination.total,1);
+  const dashboard=await f.dashboard.execute({...context,issuedFrom:new Date('2026-11-03'),issuedTo:new Date('2026-11-03')});
+  assert.equal(dashboard.financial.invoicedRevenue,0);assert.equal(dashboard.financial.receivedRevenue,0);
+  await f.update.execute({...context,invoiceId:second.id!,status:Invoice.Status.CANCELLED});
+  source=await f.invoices.findOne({...context,invoiceId:sale.id!});
+  assert.equal(source!.outstandingAmount,60);
+  const purchaseReturn=await f.create.execute(input('DEVOLUCAO-COMPRA',{operationType:Invoice.OperationType.PURCHASE_RETURN}));
+  assert.equal(purchaseReturn.netReceivableAmount,0);
+  const unlinked=await f.create.execute(input('ORIGEM-A-CONFERIR',{operationType:Invoice.OperationType.SALES_RETURN}));
+  assert.equal(unlinked.receivableStatus,Invoice.ReceivableStatus.NOT_APPLICABLE);
+  await f.receive.execute({...context,invoiceId:sale.id!,receivedAt:new Date(),amount:50,paymentMethod:'PIX'});
+  await assert.rejects(()=>f.update.execute({...context,invoiceId:first.id!,items:[{description:'Excesso após baixa',originalUnit:'UN',invoicedQuantity:1,unitPrice:60}]}),/ultrapassa o saldo/);
+});

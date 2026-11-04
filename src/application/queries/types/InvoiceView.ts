@@ -33,6 +33,10 @@ export type InvoiceView = {
   entityId: string;
   purchaseOrderId?: string;
   customerId?: string;
+  operationType: Invoice.OperationType;
+  referencedInvoiceId?: string;
+  documentAmount: number;
+  returnedAmount: number;
   invoiceNumber: string;
   issuedAt: Date;
   dueAt: Date;
@@ -80,6 +84,10 @@ export function toInvoiceView(
     entityId: invoice.entityId,
     purchaseOrderId: invoice.purchaseOrderId,
     customerId: invoice.customerId,
+    operationType: invoice.operationType,
+    referencedInvoiceId: invoice.referencedInvoiceId,
+    documentAmount: invoice.documentAmount,
+    returnedAmount: invoice.returnedAmount,
     invoiceNumber: invoice.invoiceNumber,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt,

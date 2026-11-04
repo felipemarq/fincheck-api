@@ -25,6 +25,8 @@ export const receivableFilterStatuses = [
   Invoice.ReceivableStatus.PARTIALLY_RECEIVED,
   Invoice.ReceivableStatus.RECEIVED,
   Invoice.ReceivableStatus.CANCELLED,
+  Invoice.ReceivableStatus.NOT_APPLICABLE,
+  Invoice.ReceivableStatus.RETURNED,
 ] as const;
 
 export type ReceivableSort =

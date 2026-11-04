@@ -92,6 +92,13 @@
       "when": 1793740590109,
       "tag": "0015_independent-invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793758024364,
+      "tag": "0016_invoice-returns",
+      "breakpoints": true
     }
   ]
 }
